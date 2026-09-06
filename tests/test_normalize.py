@@ -51,6 +51,7 @@ def test_drop_bullets_and_list_markers():
         "Intro",
         "item",
         "one",
+        "1.",
         "item",
         "two",
         "x",
@@ -124,3 +125,36 @@ def test_drop_zero_width_spaces_from_formula_text_set_as_words():
     ]
     assert drop_zero_width_spaces("a\u200bb") == "ab"
     assert drop_zero_width_spaces in MD_RULES and drop_zero_width_spaces in PDF_RULES
+
+
+def test_list_marker_rule_keeps_numbers_on_both_sides():
+    # bma ch06 p181: a sentence-final `0.` at the start of a PDF line is not a list marker
+    assert tokenize(normalize("investment after year\n0. Similarly it", PDF_RULES)) == [
+        "investment",
+        "after",
+        "year",
+        "0.",
+        "Similarly",
+        "it",
+    ]
+    # corpfin/strat question lists: PyMuPDF sets the bold ordinal on its own line, mineru inline;
+    # both sides keep the number, so the rule must strip neither
+    pdf, md = "Questions\n1.\nWhy did LG exit", "1. Why did LG exit"
+    assert tokenize(normalize(pdf, PDF_RULES))[1:] == tokenize(normalize(md, MD_RULES))
+    assert tokenize(normalize("- item one\n* item two", PDF_RULES)) == [
+        "item",
+        "one",
+        "item",
+        "two",
+    ]
+
+
+def test_soft_hyphen_at_a_line_end_joins_the_word():
+    # stats ch05: 143 PDF words end in U+00AD at a line end and the md holds the joined word
+    assert tokenize(normalize("we are invest­\ning in", PDF_RULES)) == [
+        "we",
+        "are",
+        "investing",
+        "in",
+    ]
+    assert drop_soft_hyphens("in­vest­ment") == "investment"

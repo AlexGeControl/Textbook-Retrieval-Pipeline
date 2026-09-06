@@ -245,14 +245,21 @@ a string captured from the fixtures or the chapters before it is implemented:
 1. `strip_markup` (md) — `<sup>x</sup>`, `<sub>x</sub>` → `x`.
 2. `nfkc` — NFKC (ligatures → letters, thin/en/em spaces → space, superscript digits → digits).
 3. `punctuation_variants` — curly quotes → straight; en/em dash, U+2212 → `-`.
-4. `drop_soft_hyphens` — remove U+00AD.
+4. `drop_soft_hyphens` — remove U+00AD; a soft hyphen at a line end joins the word it broke
+   (stats sets 143 line ends as `invest\u00ad\ning` while mineru holds `investing`; gate 3).
 5. `dehyphenate` — PDF: `(\w)-\n(\w)` → `\1\2`; then both sides: remove intra-word hyphens.
-6. `drop_bullets_and_list_markers` — `●`, `•`, `∙` (mineru's list glyph), leading `- ` / `N. `.
+6. `drop_bullets_and_list_markers` — `●`, `•`, `∙` (mineru's list glyph), leading `- ` / `* `.
+   Numbered markers stay on both sides: stripping them was asymmetric (PyMuPDF sets a bold
+   ordinal on its own line, so the PDF kept `1.` while mineru's `1. Why` lost it — corpfin 11,
+   strat 21 hunks) and ate a sentence-final `0.` at a PDF line start; no side drops a real
+   list number (gate 3, `metrics/hunk-stats-2026-09-06.md`).
 7. `join_letter_spaced_caps` — runs of ≥3 tokens of ≤2 capitals lose their spaces
    (`P A R T I I I`, `PA R T I I I` → `PARTIII`): PyMuPDF and mineru group the glyphs of a
    tracked small-caps running head differently (bkm control page). Split words such as
    `capi tal` are untouched.
-8. `tokenize` — all whitespace → one space; split.
+8. `drop_zero_width_spaces` — U+200B, which PyMuPDF emits as words of its own or glued to
+   glyphs where display formulas are set as running text (bma ch06; gate 3).
+9. `tokenize` — all whitespace → one space; split.
 
 Rules are appended, never reordered silently; each addition during gate-3 tuning follows the
 same RED-first step and is logged in the plan's verification output.

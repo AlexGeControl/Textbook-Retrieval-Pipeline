@@ -1,5 +1,5 @@
 # textbook-retrieval-pipeline — operator entrypoints (see CLAUDE.md "Commands").
-# `make chapter BOOK=<id> CH=<slug>` (stages 2-4) is added by the first implementation plan.
+# `make chapter BOOK=<id> CH=<n>` runs stages 1-4 (split, extract, guardrail, qa_report) into work/<id>/chNN/.
 # Fresh server box: make sync-server && make server-models && make client-models && make serve
 # Fresh client (e.g. the Mac): uv sync && make client-models
 
@@ -67,7 +67,7 @@ for i in $$(seq 1 $(HF_ATTEMPTS)); do \
 done
 endef
 
-.PHONY: help sync-server server-models client-models serve print-kit-base need-chapter-args split extract
+.PHONY: help sync-server server-models client-models serve print-kit-base need-chapter-args split extract guardrail qa_report chapter
 
 help:
 	@echo "make sync-server    Install/refresh the 'server' extra via the TUNA mirror; uv.lock stays on pypi.org."
@@ -76,6 +76,9 @@ help:
 	@echo "make serve          MinerU VLM server on GPU $(GPU), port $(PORT). Server box only; Ctrl-C stops."
 	@echo "make split BOOK=<id> CH=<n>     Stage 1: work/<id>/chNN/chapter.pdf + meta.json"
 	@echo "make extract BOOK=<id> CH=<n>   Stage 2: mineru hybrid-http-client -> chapter/hybrid_auto/ (FORCE=1 re-runs)"
+	@echo "make guardrail BOOK=<id> CH=<n> Stage 3: text-layer diff -> work/<id>/chNN/guardrail.json"
+	@echo "make qa_report BOOK=<id> CH=<n> Stage 4: work/<id>/chNN/qa_report.json (+ crops/)"
+	@echo "make chapter BOOK=<id> CH=<n>   Stages 1-4 for one chapter (FORCE=1 re-extracts)"
 	@echo "Variables: GPU PORT GPU_MEM_UTIL VLM_REPO VLM_REVISION KIT_REPO KIT_REVISION KIT_MODELS"
 	@echo "           HF_ATTEMPTS HF_ATTEMPT_SECS HF_ENDPOINT MIRROR BOOK CH FORCE MINERU_SERVER_URL"
 
@@ -136,3 +139,11 @@ split: need-chapter-args
 
 extract: need-chapter-args
 	uv run python -m src.extract --book $(BOOK) --chapter $(CH) $(if $(FORCE),--force)
+
+guardrail: need-chapter-args
+	uv run python -m src.guardrail --book $(BOOK) --chapter $(CH)
+
+qa_report: need-chapter-args
+	uv run python -m src.qa_report --book $(BOOK) --chapter $(CH)
+
+chapter: split extract guardrail qa_report

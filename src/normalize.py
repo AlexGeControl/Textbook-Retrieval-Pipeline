@@ -18,7 +18,8 @@ _PUNCT = str.maketrans({"“": '"', "”": '"', "‘": "'", "’": "'", "–": "
 _LINE_END_HYPHEN = re.compile(r"(\w)-\n\s*(\w)")
 _INTRA_WORD_HYPHEN = re.compile(r"(?<=\w)-(?=\w)")
 _BULLETS = re.compile(r"[●•▪■◦∙]")
-_LIST_MARKER = re.compile(r"(?m)^[ \t]*(?:[-*]|\d{1,2}\.)[ \t]+")
+_LIST_MARKER = re.compile(r"(?m)^[ \t]*[-*][ \t]+")
+_SOFT_HYPHEN_BREAK = re.compile("\u00ad\n\\s*")
 _SPACED_CAPS = re.compile(r"(?<!\S)(?:[A-Z]{1,2}[ \t]+){2,}[A-Z]{1,2}(?!\S)")
 _ZERO_WIDTH_SPACE = "\u200b"
 
@@ -48,7 +49,12 @@ def punctuation_variants(s: str) -> str:
 
 
 def drop_soft_hyphens(s: str) -> str:
-    return s.replace("­", "")
+    """Remove U+00AD; a soft hyphen at a line end joins the word it broke.
+
+    stats ch05 sets 143 line ends as `invest\\u00ad\\ning` in the text layer while mineru holds
+    `investing`; dropping the hyphen alone left the line break as a word split (gate 3, 2026-09-06).
+    """
+    return _SOFT_HYPHEN_BREAK.sub("", s).replace("\u00ad", "")
 
 
 def dehyphenate(s: str) -> str:
@@ -57,6 +63,13 @@ def dehyphenate(s: str) -> str:
 
 
 def drop_bullets_and_list_markers(s: str) -> str:
+    """Bullet glyphs and leading `- `/`* ` markers go; numbered markers stay on both sides.
+
+    Digit stripping was asymmetric (gate 3, 2026-09-06): PyMuPDF sets a bold question ordinal on
+    its own line, so `1.\\nWhy` kept it while mineru's `1. Why` lost it (corpfin 11, strat 21
+    hunks), and a sentence-final `0.` at a PDF line start was eaten. Neither side drops a real
+    list number, so nothing is normalized away.
+    """
     return _LIST_MARKER.sub("", _BULLETS.sub(" ", s))
 
 
