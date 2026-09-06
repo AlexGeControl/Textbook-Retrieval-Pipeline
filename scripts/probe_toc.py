@@ -60,7 +60,7 @@ def evidence(book_id: str, cfg: dict, doc: pymupdf.Document, samples: int) -> No
     else:
         print(
             "  chapters under current config: none (set chapter_level + chapter_pattern, "
-            "or a toc.normalize step)"
+            "or a toc.patches rule + scripts/patch_toc.py)"
         )
 
 

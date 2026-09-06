@@ -77,7 +77,7 @@ def _chapter_level(cfg: dict, book_id: str) -> int:
     if toc_cfg.get("chapter_level") is None or toc_cfg.get("chapter_pattern") is None:
         raise SplitError(
             f"{book_id}: toc.chapter_level / toc.chapter_pattern not set in config/books.yaml "
-            "(unnumbered chapter titles: add a toc.normalize step, see src/toc.py)"
+            "(unnumbered chapter titles: fix the outline once with scripts/patch_toc.py)"
         )
     return toc_cfg["chapter_level"]
 
@@ -88,8 +88,8 @@ def resolve_chapter(
     slug = chapter_slug(number)
     level = _chapter_level(cfg, book_id)
     # Matching criteria: an outline entry at the chapter level whose (normalized) title matches
-    # toc.chapter_pattern with group 1 == number. Layout quirks are handled by toc.normalize
-    # steps in src/toc.py, never here.
+    # toc.chapter_pattern with group 1 == number. Outline quirks are fixed once in the PDF by
+    # scripts/patch_toc.py (toc.patches), never handled here.
     matches = [e for e in chapter_entries(toc, cfg["toc"]) if e.number == number]
     # If override is provided, use override instead as shortcut
     override = (cfg.get("chapter_ranges") or {}).get(slug)
@@ -146,7 +146,7 @@ def printed_page(doc: pymupdf.Document, idx: int, cfg: dict, book_id: str) -> in
 def subtree(toc: list[list], rng: ChapterRange, level: int) -> list[list]:
     """[[level, title, pdf_page0], ...] for outline entries inside the chapter below `level`."""
     # A chapter resolved purely from chapter_ranges has no outline entry to hang a subtree on,
-    # so it has no sections either (see design §4; stats/acct need a different resolver).
+    # so it has no sections either (see design §4); fix the outline with scripts/patch_toc.py instead.
     if rng.toc_index is None:
         return []
     out = []

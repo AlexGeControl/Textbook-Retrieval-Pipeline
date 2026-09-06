@@ -9,10 +9,10 @@
 #   body_range          {begin, end} 0-based pdf indices sampled by scripts/check_books.py
 #   toc.source          outline | manual — stage 1 uses the PDF outline unless set to manual
 #   toc.chapter_level   outline level that holds chapters (null = not yet measured)
-#   toc.chapter_pattern regex on the (normalized) outline title; group 1 = chapter number
-#   toc.normalize       optional list of in-memory outline fixes applied before the pattern,
-#                       e.g. [number_from_sections] when chapter titles carry no number but
-#                       their first section does ("1.1 ..."); steps live in src/toc.py
+#   toc.chapter_pattern regex on the outline title; group 1 = chapter number
+#   toc.patches         optional rules scripts/patch_toc.py writes into the PDF outline ONCE
+#                       (number_from_children | merge_number_only_with_next | rename); the
+#                       patched PDF is the source of truth, <id>.orig.pdf keeps the original
 #   toc.page_offset     printed = pdf_1based - page_offset; fallback when page labels are
 #                       missing; null = unknown (stage 1 then fails if labels are absent)
 #   chapter_ranges      chNN: [first_idx, last_idx] (0-based, inclusive) — overrides the
@@ -75,7 +75,12 @@ books:
     profile: formulas+tables
     pdf: books/stats/stats.pdf
     body_range: {begin: 2, end: 1211}
-    toc: {source: outline, chapter_level: 1, chapter_pattern: '^(\d+): ', normalize: [number_from_sections], page_offset: 31}
+    toc:
+      source: outline
+      chapter_level: 1
+      chapter_pattern: '^(\d+):'
+      page_offset: 31
+      patches: [{rule: number_from_children, level: 1}]   # chapter titles carry no number; sections do
     chapter_ranges: {}
     routing: {inline_formula: true}
 
@@ -86,7 +91,12 @@ books:
     profile: formulas+tables-hardest
     pdf: books/corpfin/corpfin.pdf
     body_range: {begin: 4, end: 1055}
-    toc: {source: outline, chapter_level: 1, chapter_pattern: '^Chapter (\d+)\b', page_offset: 33}  # measured via scripts/probe_toc.py
+    toc:
+      source: outline
+      chapter_level: 1
+      chapter_pattern: '^Chapter (\d+)\b'
+      page_offset: 33   # measured via scripts/probe_toc.py
+      patches: [{rule: merge_number_only_with_next, level: 2}]   # "5.1" and its title are separate entries
     chapter_ranges: {}
     routing: {inline_formula: true}
 

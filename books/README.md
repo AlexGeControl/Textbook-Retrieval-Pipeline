@@ -22,3 +22,8 @@ Rules:
   `config/books.yaml` once you have looked at the outline (`printed = pdf_1based -
   page_offset`; stage 1 prefers PDF page labels and only falls back to the offset).
   `body_range` is the 0-based index range `scripts/check_books.py` samples.
+- If a book's outline does not fit `chapter_level` + `chapter_pattern` (unnumbered
+  chapter titles, section numbers split from titles), add `toc.patches` rules and run
+  `uv run scripts/patch_toc.py <id>` (dry run), then `--apply`. The outline is rewritten
+  in `<id>.pdf` itself; the untouched original stays next to it as `<id>.orig.pdf`. Run
+  `scripts/check_books.py` afterwards to refresh the manifest hash.

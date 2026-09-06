@@ -41,16 +41,3 @@ def test_unconfigured_outline_yields_nothing():
 
 def test_shipped_mitx_reading_list_is_the_benchmark():
     assert load_readings("mitx") == {"bma": [5, 6]}
-
-
-def test_outline_chapters_via_numbered_sections():
-    toc = [[1, "Preface", 1], [1, "Data", 2], [2, "1.1 A", 2], [1, "Stats", 5], [2, "2.1 B", 5]]
-    cfg = {
-        "toc": {
-            "chapter_level": 1,
-            "chapter_pattern": r"^(\d+): ",
-            "normalize": ["number_from_sections"],
-        },
-        "chapter_ranges": {},
-    }
-    assert outline_chapters(toc, cfg) == [1, 2]

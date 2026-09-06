@@ -25,7 +25,7 @@ def test_every_book_has_the_stage1_keys():
             "chapter_level",
             "chapter_pattern",
             "page_offset",
-            "normalize",
+            "patches",
         }
         assert b["toc"]["chapter_pattern"] is not None, f"{bid}: every book is configured now"
         assert isinstance(b.get("chapter_ranges", {}), dict)

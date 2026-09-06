@@ -4,6 +4,7 @@ import pymupdf
 import pytest
 
 from src.split import SplitError, build_meta, resolve_chapter, write_chapter
+from src.toc import patch_toc
 
 TOC = [
     [1, "Part One", 1],
@@ -135,16 +136,18 @@ SECTIONED_CFG = {
     "toc": {
         "source": "outline",
         "chapter_level": 1,
-        "chapter_pattern": r"^(\d+): ",
-        "normalize": ["number_from_sections"],
+        "chapter_pattern": r"^(\d+):",
         "page_offset": None,
     },
     "chapter_ranges": {},
 }
 
 
-def test_resolve_chapter_numbered_by_its_sections():
-    rng = resolve_chapter(SECTIONED_TOC, SECTIONED_CFG, "s", 1, 6)
+PATCHED_TOC, _ = patch_toc(SECTIONED_TOC, [{"rule": "number_from_children", "level": 1}])
+
+
+def test_resolve_chapter_on_a_patched_outline():
+    rng = resolve_chapter(PATCHED_TOC, SECTIONED_CFG, "s", 1, 6)
     # ch1 starts at page 2 (idx 1) and ends before "Chapter 1 Appendix" at page 4 (idx 3)
     assert (rng.slug, rng.title, rng.first, rng.last, rng.toc_index) == (
         "ch01",
@@ -153,15 +156,20 @@ def test_resolve_chapter_numbered_by_its_sections():
         2,
         1,
     )
-    rng = resolve_chapter(SECTIONED_TOC, SECTIONED_CFG, "s", 2, 6)
+    rng = resolve_chapter(PATCHED_TOC, SECTIONED_CFG, "s", 2, 6)
     assert (rng.first, rng.last, rng.toc_index) == (4, 5, 6)
 
 
-def test_sections_strategy_keeps_the_subtree(tmp_path):
+def test_unpatched_unnumbered_outline_fails_loudly():
+    with pytest.raises(SplitError, match=r"s ch01: no level-1 outline entry"):
+        resolve_chapter(SECTIONED_TOC, SECTIONED_CFG, "s", 1, 6)
+
+
+def test_patched_outline_keeps_the_subtree(tmp_path):
     doc = pymupdf.open()
     for i in range(6):
         doc.new_page(width=200, height=200).insert_text((20, 40), f"page {i}")
-    doc.set_toc(SECTIONED_TOC)
+    doc.set_toc(PATCHED_TOC)
     doc.set_page_labels([{"startpage": 0, "prefix": "", "style": "D", "firstpagenum": 1}])
     doc.save(tmp_path / "s.pdf")
     meta = build_meta(pymupdf.open(tmp_path / "s.pdf"), SECTIONED_CFG, "s", 1)
@@ -169,6 +177,6 @@ def test_sections_strategy_keeps_the_subtree(tmp_path):
     assert meta["toc_subtree"] == [[2, "1.1  Applications", 1], [2, "1.2  Data", 2]]
 
 
-def test_sections_strategy_missing_chapter_fails_loudly():
+def test_patched_outline_missing_chapter_fails_loudly():
     with pytest.raises(SplitError, match=r"s ch07: no level-1 outline entry"):
-        resolve_chapter(SECTIONED_TOC, SECTIONED_CFG, "s", 7, 6)
+        resolve_chapter(PATCHED_TOC, SECTIONED_CFG, "s", 7, 6)

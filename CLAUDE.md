@@ -68,11 +68,12 @@ first plan. Keep this list in sync.
 
 ```
 Makefile                   sync-server, server-models, client-models, serve; chapter: first plan
-books/<id>/<id>.pdf        PDF landing zone; gitignored, never leaves this machine
+books/<id>/<id>.pdf        PDF landing zone; gitignored, never leaves this machine. Outline may be
+                           patched in place by scripts/patch_toc.py; <id>.orig.pdf keeps the original
 books/manifest.json        hashes/page counts from scripts/check_books.py (committed)
 config/books.yaml          per-book pdf path, TOC hints, routing flags
 config/readings/*.yaml     per-course chapter lists (mitx, fmba)
-src/toc.py                 outline helpers: chapter_entries + toc.normalize steps (shared)
+src/toc.py                 outline helpers: chapter_entries + toc.patches rules (shared)
 src/split.py               stage 1  chapter splitter
 src/extract.py             stage 2  mineru wrapper
 src/guardrail.py           stage 3  PyMuPDF text-layer diff
@@ -80,6 +81,7 @@ src/qa_report.py           stage 4  qa_report.json builder
 src/vault_commit.py        stage 5b move certified output into vault
 scripts/check_books.py     landing-zone intake check; run after adding any PDF
 scripts/probe_toc.py       outline evidence for books.yaml toc.*; --check resolves all chapters
+scripts/patch_toc.py       write toc.patches rules into a book's PDF outline (dry run by default)
 .claude/skills/chapter-review/SKILL.md   stage 5 reviewer instructions
 work/                      per-chapter working dirs (gitignored)
 metrics/                   benchmark + per-chapter metrics
