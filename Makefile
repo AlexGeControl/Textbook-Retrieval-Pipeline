@@ -67,15 +67,17 @@ for i in $$(seq 1 $(HF_ATTEMPTS)); do \
 done
 endef
 
-.PHONY: help sync-server server-models client-models serve print-kit-base
+.PHONY: help sync-server server-models client-models serve print-kit-base need-chapter-args split extract
 
 help:
 	@echo "make sync-server    Install/refresh the 'server' extra via the TUNA mirror; uv.lock stays on pypi.org."
 	@echo "make server-models  Download the VLM $(VLM_REPO)@$(VLM_REVISION) (~2.2 GB) into the HF cache."
 	@echo "make client-models  Download the PDF-Extract-Kit models the hybrid client runs locally (~1.06 GB)."
 	@echo "make serve          MinerU VLM server on GPU $(GPU), port $(PORT). Server box only; Ctrl-C stops."
+	@echo "make split BOOK=<id> CH=<n>     Stage 1: work/<id>/chNN/chapter.pdf + meta.json"
+	@echo "make extract BOOK=<id> CH=<n>   Stage 2: mineru hybrid-http-client -> chapter/hybrid_auto/ (FORCE=1 re-runs)"
 	@echo "Variables: GPU PORT GPU_MEM_UTIL VLM_REPO VLM_REVISION KIT_REPO KIT_REVISION KIT_MODELS"
-	@echo "           HF_ATTEMPTS HF_ATTEMPT_SECS HF_ENDPOINT MIRROR"
+	@echo "           HF_ATTEMPTS HF_ATTEMPT_SECS HF_ENDPOINT MIRROR BOOK CH FORCE MINERU_SERVER_URL"
 
 print-kit-base:
 	@echo $(KIT_MODELS_BASE)
@@ -117,3 +119,20 @@ serve:
 	echo "+ mineru-openai-server --model $$model --port $(PORT) --gpu-memory-utilization $(GPU_MEM_UTIL)  (GPU $(GPU))"; \
 	CUDA_DEVICE_ORDER=PCI_BUS_ID CUDA_VISIBLE_DEVICES=$(GPU) HF_HUB_OFFLINE=1 \
 	uv run --no-sync mineru-openai-server --model "$$model" --port $(PORT) --gpu-memory-utilization $(GPU_MEM_UTIL)
+
+# ---- pipeline stages (design: docs/plans/2026-09-06-stages-1-4-design.md) ---------------------
+# make chapter BOOK=bma CH=5 runs split -> extract -> guardrail -> qa_report into work/bma/ch05/.
+MINERU_SERVER_URL ?= http://127.0.0.1:30000
+export MINERU_SERVER_URL
+BOOK ?=
+CH ?=
+FORCE ?=
+
+need-chapter-args:
+	@test -n "$(BOOK)" -a -n "$(CH)" || { echo "usage: make <target> BOOK=<id> CH=<n> [FORCE=1]" >&2; exit 2; }
+
+split: need-chapter-args
+	uv run python -m src.split --book $(BOOK) --chapter $(CH)
+
+extract: need-chapter-args
+	uv run python -m src.extract --book $(BOOK) --chapter $(CH) $(if $(FORCE),--force)
