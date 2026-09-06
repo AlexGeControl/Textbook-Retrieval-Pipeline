@@ -28,7 +28,7 @@ Corrections to HANDOVER made by the operator (2026-09-06):
 | Client GPU / model resolution | `extract.py` sets `CUDA_DEVICE_ORDER=PCI_BUS_ID`, `MINERU_DEVICE_MODE=cuda:1` (RTX A6000) and `MINERU_MODEL_SOURCE=local`, reading the pinned snapshot paths already in `~/mineru.json`. | No contention with vLLM's KV cache on GPU 0; offline, deterministic model set. |
 | Routing flags → CLI | `routing.inline_formula → -f`, `routing.table → -t`, `routing.image_analysis → --image-analysis`, `routing.lang → -l`. Only `inline_formula` is set today. | Direct 1:1 mapping; mineru 3.4.5 `--help` verified. |
 | Entrypoint | `make chapter BOOK=<id> CH=<n>` runs stages 1→4; `FORCE=1` re-runs extraction. | HANDOVER's recommended single entrypoint. |
-| Diff strategy | Page-scoped word-token diff (difflib) with block-anchored hunks. | Cheap alignment, local errors; a block mineru moved across a page break shows as a visible delete/insert pair. |
+| Diff strategy | Page-scoped: verbatim block alignment first (order-insensitive), word-token diff (difflib) on the residue, block-anchored hunks. | Cheap, local; reordered boxes/footnotes/captions match for free; a block mineru moved across a page break shows as a visible unmatched block. |
 
 Deferred to stage 5 (recorded so they are not lost): which level-3 entries become notes
 (numbered sections only vs. all, end-matter grouping); how notes render footnotes from
@@ -82,7 +82,7 @@ bma:
     source: outline                       # outline | manual
     chapter_level: 2                      # outline level holding chapters
     chapter_pattern: '^(\d+):'            # regex; group 1 = chapter number
-    page_offset: 31                       # printed = pdf_1based - page_offset; fallback only
+    page_offset: 31                       # printed = pdf_1based - page_offset; fallback only; null = unknown
   chapter_ranges: {}                      # ch05: [first_idx, last_idx] (0-based) overrides
   routing: {inline_formula: true}
 ```
@@ -139,7 +139,8 @@ holding only the benchmark chapters; no `fmba.yaml`.
 
 ## 5. Stage 2 — `src/extract.py`
 
-`uv run python -m src.extract --book bma --chapter ch05 [--force]`.
+`uv run python -m src.extract --book bma --chapter 5 [--force]` (all four stage CLIs take the
+chapter number; `ch05` is also accepted).
 
 - Preflight (each a loud failure): `MINERU_SERVER_URL` set; `GET <url>/health` answers;
   `~/mineru.json` (or `MINERU_TOOLS_CONFIG_JSON`) has `models-dir.pipeline` pointing at an
@@ -163,17 +164,24 @@ holding only the benchmark chapters; no `fmba.yaml`.
 list_items, table_body, img_path, text_level, sub_type)`; `id = f"p{page_idx:03d}-b{index:03d}"`
 where `index` is the block's position in `_content_list.json`. Type classes:
 `RUNNING_TEXT = {text, list, page_footnote}`, `VLM_GENERATED = {table, equation, chart}`,
-`FIGURES = {image, chart}`, `DISCARDED = {header, page_number}`.
-`running_text(block) -> str` joins `list_items` with newlines for lists.
+`FIGURES = {image, chart}`, `DISCARDED = {header, page_number}`, `CAPTIONED = {table, chart,
+image}`. `Block.running_text()` joins `list_items` with newlines for lists;
+`Block.caption_text()` joins a captioned block's `*_caption` + `*_footnote` strings — text-layer
+prose that sits around a non-text body and must be matched, not lost.
 
 ### Token streams, per page
 
-- PDF side: `page.get_text("words")` on `chapter.pdf`; drop words whose centre lies in a
-  `header` or `page_number` bbox from `_middle.json.pdf_info[p].discarded_blocks`
+- PDF side: `page.get_text("words")` on `chapter.pdf`; drop words whose centre lies in
+  (a) a `header` or `page_number` bbox from `_middle.json.pdf_info[p].discarded_blocks`
   (point coordinates; assert `page_size` equals the PyMuPDF page rect within 1 pt, else
-  fail). Footnote regions stay — they are matched by `page_footnote` blocks.
-- MD side: the page's `RUNNING_TEXT` blocks in content_list order; every token carries
-  its `Block.id`.
+  fail) or (b) the bbox of any `table`, `equation`, `chart` or `image` block on that page
+  (content_list 0–1000 coordinates scaled to points). Those regions' glyphs — table cells,
+  display-formula symbols, chart labels — are in the text layer but are deliberately absent
+  from the md side, so leaving them would hunk every table and formula. Footnote regions
+  stay — they are matched by `page_footnote` blocks.
+- MD side: the page's `RUNNING_TEXT` blocks (running text) and `CAPTIONED` blocks (caption
+  text only — the body stays excluded) in content_list order; every token carries its
+  `Block.id`.
 
 ### Normalization (`src/normalize.py`)
 
@@ -181,39 +189,57 @@ Ordered pure functions on strings, applied to both sides unless marked; each rul
 own failing unit test on a string captured from the fixtures or the chapter before it is
 implemented. Seed rules:
 
-1. `unescape_markdown` (md) — `\$ \% \_ \# \*` → literal; `<sup>x</sup>` → `x`;
+1. `flatten_inline_math` (md) — `$…$` → content with LaTeX commands, braces, `^`, `_`
+   and all inner whitespace removed (mineru spaces digits: `\$ 5 0 0` → `$500`). Runs
+   first because an unescaped `$` is the delimiter; unescaping `\$` earlier would create
+   false delimiters.
+2. `unescape_markdown` (md) — `\$ \% \_ \# \*` → literal; `<sup>x</sup>` → `x`;
    strip `**` / `*` emphasis markers.
-2. `nfkc` — NFKC (ligatures → letters, thin/en/em spaces → space, superscript digits → digits).
-3. `punctuation_variants` — curly quotes → straight; en/em dash, U+2212 → `-`.
-4. `drop_soft_hyphens` — remove U+00AD.
-5. `dehyphenate` — PDF: `(\w)-\n(\w)` → `\1\2`; then both sides: remove intra-word hyphens.
-6. `flatten_inline_math` (md) — `$…$` → content with LaTeX commands, braces, `^`, `_`
-   removed and mineru's digit spacing collapsed (`\$ 5 0 0` → `$500`).
+3. `nfkc` — NFKC (ligatures → letters, thin/en/em spaces → space, superscript digits → digits).
+4. `punctuation_variants` — curly quotes → straight; en/em dash, U+2212 → `-`.
+5. `drop_soft_hyphens` — remove U+00AD.
+6. `dehyphenate` — PDF: `(\w)-\n(\w)` → `\1\2`; then both sides: remove intra-word hyphens.
 7. `drop_bullets_and_list_markers` — `●`, `•`, leading `- ` / `N. ` markers.
-8. `collapse_whitespace_and_tokenize` — all whitespace → one space; split.
+8. `tokenize` — all whitespace → one space; split.
 
 Rules are appended, never reordered silently; each addition during gate-3 tuning follows
 the same RED-first step and is logged in the plan's verification output.
 
-### Diff and hunks
+### Alignment, diff and hunks
 
-`difflib.SequenceMatcher(None, pdf_tokens, md_tokens, autojunk=False)` per page. Every
-non-`equal` opcode is a hunk; hunks separated by ≤ 2 equal tokens merge. Hunk shape is
-exactly HANDOVER §6: `{"page": <printed page>, "anchor": <Block.id owning the md tokens,
-or the nearest preceding block for pure deletions>, "pdf_text": …, "md_text": …}`; both
-texts include 3 equal context tokens on each side.
+Block first, words second. For each md-side block in content_list order, its normalized
+tokens are searched as a contiguous run in the page's PDF tokens — first at or after the end
+of the previous match (reading order), then anywhere on the page. A hit consumes those PDF
+tokens and retires the block. This is what makes boxed examples, "Concept Check" boxes,
+footnotes and captions cost nothing: PyMuPDF emits them in content-stream order, mineru in
+visual order, and the text is identical. Verified on the control page: 40/40 blocks match,
+zero hunks, with no reorder-specific logic.
+
+The residue — unconsumed PDF tokens in order vs. tokens of unmatched blocks in order — goes
+through `difflib.SequenceMatcher(None, pdf, md, autojunk=False)`. Every non-`equal` opcode
+is a hunk; hunks separated by ≤ 2 equal tokens merge. Hunk shape is exactly HANDOVER §6:
+`{"page": <printed page>, "anchor": <Block.id>, "pdf_text": …, "md_text": …}` with 3 equal
+context tokens on each side. The anchor is the block owning the md tokens; for a pure
+deletion it is the block whose matched PDF span ends just before the deleted words, else
+the nearest preceding md block, else the page's first aligned block, else `pNNN-none`.
+
+Known real-defect classes seen on the fixtures, deliberately **not** folded by
+normalization because they are wrong in the output: words split at former hyphenation
+points (`capi tal`, `inven tory`, `Earn ings`), dropped characters (`ou company`), a dash
+rendered as `- `. They are stage-5 patch items; gate 3 counts them as real, not spurious.
 
 ### Output
 
 `work/<book>/<ch>/guardrail.json`: `{"pages": N, "counts": {"pdf_tokens", "md_tokens",
-"hunks", "hunks_inline_math"}, "hunks": [...]}` where `hunks_inline_math` counts hunks
-whose `md_text` still contains flattened math (VLM/MFR output to review, not spurious).
+"matched_blocks", "unmatched_blocks", "hunks", "hunks_inline_math"}, "hunks": [...]}` where
+`matched_blocks` / `unmatched_blocks` count aligned blocks and `hunks_inline_math` counts
+hunks whose owning block contains inline math (VLM/MFR output to review, not spurious).
 CLI prints a per-page table and exits 0; nonzero only for structural faults (missing
 inputs, page-count or page-size mismatch).
 
 ## 7. Stage 4 — `src/qa_report.py` with `src/qa_schema.py`
 
-`uv run python -m src.qa_report --book bma --chapter ch05` → `work/<book>/<ch>/qa_report.json`.
+`uv run python -m src.qa_report --book bma --chapter 5` → `work/<book>/<ch>/qa_report.json`.
 
 - `book`, `chapter` (slug), `pages` = `meta.printed_pages`.
 - `extraction`: `backend: "hybrid-http-client"`, `effort` = `_middle.json._effort`,
@@ -237,7 +263,7 @@ inputs, page-count or page-size mismatch).
 
 ```
 make chapter BOOK=bma CH=5 [FORCE=1]   # split → extract → guardrail → qa_report
-src/__init__.py  blocks.py  normalize.py  readings.py  split.py  extract.py  guardrail.py  qa_report.py  qa_schema.py
+src/__init__.py  config.py  blocks.py  normalize.py  readings.py  split.py  extract.py  guardrail.py  qa_report.py  qa_schema.py
 work/<book>/<ch>/chapter.pdf  meta.json  chapter/hybrid_auto/…  guardrail.json  qa_report.json  crops/
 ```
 
