@@ -1,7 +1,7 @@
 # Gate 3 — bma ch05 / ch06 (2026-09-06)
 
 Stages 1–4 end to end (`make chapter BOOK=bma CH=5|6`, extraction reused) at the tuned
-normalization rules; hunk classification per the gate-3 handover protocol, every hunk read.
+normalization rules; hunk classification per plan Task 11 Step 4, every hunk read.
 The same pipeline ran on ch05 of the other six books; that evidence, gathered with one
 mechanical classifier and one reviewing agent per chapter, is in
 `metrics/hunk-stats-2026-09-06.md` and drove two of the three rule changes below.

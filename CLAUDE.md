@@ -98,7 +98,7 @@ metrics/                   block-type evidence, gate3-bma.md, hunk-stats-2026-09
 tests/helpers.py           fixture-cache lookup shared by unit tests
 tests/fixtures/            fixture PDFs + cached MinerU outputs (gitignored)
 docs/design/               handover and design docs, loaded on demand
-docs/plans/                design + plan for stages 1–4, gate-3 handover
+docs/plans/                design + plan for stages 1–4; addenda record the gates
 ```
 
 ## Hard rules
