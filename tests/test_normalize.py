@@ -4,6 +4,7 @@ from src.normalize import (
     dehyphenate,
     drop_bullets_and_list_markers,
     drop_soft_hyphens,
+    drop_zero_width_spaces,
     flatten_latex,
     join_letter_spaced_caps,
     nfkc,
@@ -106,3 +107,20 @@ def test_join_letter_spaced_caps_folds_small_caps_running_heads():
     assert join_letter_spaced_caps("NPV IRR") == "NPV IRR"
     assert join_letter_spaced_caps("capi tal") == "capi tal"
     assert join_letter_spaced_caps in MD_RULES and join_letter_spaced_caps in PDF_RULES
+
+
+def test_drop_zero_width_spaces_from_formula_text_set_as_words():
+    # bma ch06 p163/p169: PyMuPDF words around formulas set as running text carry U+200B,
+    # alone ("​") or glued to glyphs ("​rent​ 1​"); NFKC leaves it in place
+    s = "\u200b Project Valuation Rows \u200b \u200brent\u200b 1\u200b  6%: \u200b\u200b PV"
+    assert tokenize(normalize(s, PDF_RULES)) == [
+        "Project",
+        "Valuation",
+        "Rows",
+        "rent",
+        "1",
+        "6%:",
+        "PV",
+    ]
+    assert drop_zero_width_spaces("a\u200bb") == "ab"
+    assert drop_zero_width_spaces in MD_RULES and drop_zero_width_spaces in PDF_RULES

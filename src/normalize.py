@@ -20,6 +20,7 @@ _INTRA_WORD_HYPHEN = re.compile(r"(?<=\w)-(?=\w)")
 _BULLETS = re.compile(r"[●•▪■◦∙]")
 _LIST_MARKER = re.compile(r"(?m)^[ \t]*(?:[-*]|\d{1,2}\.)[ \t]+")
 _SPACED_CAPS = re.compile(r"(?<!\S)(?:[A-Z]{1,2}[ \t]+){2,}[A-Z]{1,2}(?!\S)")
+_ZERO_WIDTH_SPACE = "\u200b"
 
 
 def flatten_latex(latex: str) -> str:
@@ -68,6 +69,15 @@ def join_letter_spaced_caps(s: str) -> str:
     return _SPACED_CAPS.sub(lambda m: re.sub(r"[ \t]+", "", m.group(0)), s)
 
 
+def drop_zero_width_spaces(s: str) -> str:
+    """U+200B: PyMuPDF emits it as a word of its own or glued to glyphs in formula-set text.
+
+    Seen on bma ch06 (printed pages 163, 169, 171) where display formulas are set as running
+    text; NFKC does not touch it and `str.split` does not treat it as whitespace.
+    """
+    return s.replace(_ZERO_WIDTH_SPACE, "")
+
+
 def tokenize(s: str) -> list[str]:
     return s.split()
 
@@ -80,6 +90,7 @@ MD_RULES: tuple[Callable[[str], str], ...] = (
     dehyphenate,
     drop_bullets_and_list_markers,
     join_letter_spaced_caps,
+    drop_zero_width_spaces,
 )
 PDF_RULES: tuple[Callable[[str], str], ...] = (
     nfkc,
@@ -88,6 +99,7 @@ PDF_RULES: tuple[Callable[[str], str], ...] = (
     dehyphenate,
     drop_bullets_and_list_markers,
     join_letter_spaced_caps,
+    drop_zero_width_spaces,
 )
 
 
