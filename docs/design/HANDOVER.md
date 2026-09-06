@@ -189,8 +189,7 @@ and the metrics record. Schema (v1):
 ### Stage 5 — Claude Code review (`review/REVIEW_SKILL.md`)
 Write this as a skill/instruction file the review session loads. Rules:
 - Read `qa_report.json`; open ONLY referenced crops and hunk contexts.
-- Adjudicate each diff hunk (text-layer wins unless the crop shows the
-  layer itself is wrong, e.g. ligature garbage).
+- Adjudicate each diff hunk (text-layer wins unless the crop shows the layer itself is wrong, e.g. ligature garbage).
 - For each flagged table/formula: compare crop to markdown; emit a
   **surgical patch** if wrong. Never regenerate a section.
 - Verify programmatically, not by eye: LaTeX must compile (or KaTeX-parse),
