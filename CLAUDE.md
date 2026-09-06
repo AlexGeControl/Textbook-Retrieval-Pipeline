@@ -9,6 +9,12 @@ planning any stage. Design principles (§1), component contracts (§6) and
 build order/gates (§7) are fixed. Function names, module boundaries and
 normalization rules are yours. Open decisions are listed in §9.
 
+Stages 1–4 (splitter, extract wrapper, guardrail, qa_report) are designed in
+`docs/plans/2026-09-06-stages-1-4-design.md`, which supersedes HANDOVER §5–§7
+for those stages and records the resolved §9 decisions (content_list anchor,
+chapter-unit extraction with sections in meta.json, `table|formula|chart`
+flags, GPU 1 + local model pins, BMA ch. 5–6 benchmark, optional reading lists).
+
 ## Stack
 
 - Python managed by `uv`. Always `uv run …` / `uv add …` / `uv sync …`; never

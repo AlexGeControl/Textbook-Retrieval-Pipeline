@@ -170,7 +170,7 @@ and the metrics record. Schema (v1):
 
 ```json
 {
-  "book": "corpfin", "chapter": "ch04", "pages": [88, 121],
+  "book": "bma", "chapter": "ch05", "pages": [119, 148],
   "extraction": {"backend": "hybrid-http-client", "effort": "high",
                   "mineru_version": "", "timestamp": ""},
   "counts": {"blocks": 0, "tables": 0, "formulas": 0, "figures": 0,
@@ -206,7 +206,7 @@ Write this as a skill/instruction file the review session loads. Rules:
 1. **Server bring-up** — one command (`make serve`); gate: OpenAI-compatible
    endpoint answers on :30000 from the client machine. **Passed 2026-09-06**
    from the server box; the Mac-over-Tailscale check is pending.
-2. **Stage 2 on one benchmark chapter** (start with `corpfin`, a
+2. **Stage 2 on one benchmark chapter** (start with `bma`, a
    formula+table-heavy chapter — hardest case first). Gate: `<stem>.md` +
    content-list/middle JSON + crops produced end-to-end.
 3. **Stages 3–4** on that chapter. Gate: diff false-positive rate low enough
