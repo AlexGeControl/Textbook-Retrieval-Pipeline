@@ -5,7 +5,7 @@
   uv run scripts/patch_toc.py <book> --apply --force   even if <id>.orig.pdf exists and differs
 
 Rules come from toc.patches in config/books.yaml (see src/toc.py: number_from_children,
-merge_number_only_with_next, rename). --apply copies the current PDF to books/<id>/<id>.orig.pdf
+rebuild_numbered_sections, insert, rename). --apply copies the current PDF to books/<id>/<id>.orig.pdf
 first, rewrites only the outline (incremental save: page objects and the text layer keep their
 bytes), then re-opens the file and asserts the outline and page count. Afterwards run
 `uv run scripts/check_books.py` so books/manifest.json records the new sha256 and outline size.
@@ -76,9 +76,15 @@ def apply(pdf: Path, patches: list[dict], force: bool = False) -> list[Change]:
 
 
 def print_table(changes: list[Change], total: int) -> None:
+    from collections import Counter
+
     for c in changes:
-        print(f"  L{c.level} p{c.page:5d}  {c.old!r} -> {c.new!r}")
-    print(f"{len(changes)} of {total} outline entries change")
+        note = f"  [{c.note}]" if c.note else ""
+        print(f"  L{c.level} p{c.page:5d}  {c.old!r} -> {c.new!r}{note}")
+    by_note = ", ".join(
+        f"{n or 'renamed'}: {k}" for n, k in sorted(Counter(c.note for c in changes).items())
+    )
+    print(f"{len(changes)} of {total} outline entries change ({by_note})")
 
 
 def main(argv: list[str] | None = None) -> int:

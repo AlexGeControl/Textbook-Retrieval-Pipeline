@@ -99,7 +99,7 @@ Which outline entries are chapters is decided in one place, `src/toc.chapter_ent
 rule: an entry at `chapter_level` whose title matches `chapter_pattern`. Outline quirks are not
 handled at run time: `scripts/patch_toc.py <book> --apply` fixes them **once in the PDF** using
 the `toc.patches` rules (`number_from_children` for stats' unnumbered chapter titles,
-`merge_number_only_with_next` for corpfin's split section titles, `rename` for one-offs). The
+`rebuild_numbered_sections` + `insert` for corpfin's detached section numbers, `rename` for one-offs). The
 patched `books/<id>/<id>.pdf` is the source of truth; `books/<id>/<id>.orig.pdf` preserves the
 original bytes (gitignored) so the change is reversible and diffable via `get_toc()`; only the
 outline objects change (incremental save), the text layer is byte-identical.

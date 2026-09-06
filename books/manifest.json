@@ -76,10 +76,10 @@
   },
   "corpfin": {
     "pdf": "books/corpfin/corpfin.pdf",
-    "sha256": "d276dd816bfb64bdaa10c779ec7998d9687f9a4434770afa2bfe044477ab7b63",
+    "sha256": "f934748789190cae96e5caf2d1283323325005b0087e05ca2338ac95da0006cf",
     "pages": 1055,
     "text_layer_sample": "21/21",
-    "outline_entries": 828,
+    "outline_entries": 733,
     "outline_top_level": 44,
     "first_outline_titles": [
       "About the Authors",

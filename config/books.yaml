@@ -11,7 +11,7 @@
 #   toc.chapter_level   outline level that holds chapters (null = not yet measured)
 #   toc.chapter_pattern regex on the outline title; group 1 = chapter number
 #   toc.patches         optional rules scripts/patch_toc.py writes into the PDF outline ONCE
-#                       (number_from_children | merge_number_only_with_next | rename); the
+#                       (number_from_children | rebuild_numbered_sections | insert | rename); the
 #                       patched PDF is the source of truth, <id>.orig.pdf keeps the original
 #   toc.page_offset     printed = pdf_1based - page_offset; fallback when page labels are
 #                       missing; null = unknown (stage 1 then fails if labels are absent)
@@ -96,7 +96,11 @@ books:
       chapter_level: 1
       chapter_pattern: '^Chapter (\d+)\b'
       page_offset: 33   # measured via scripts/probe_toc.py
-      patches: [{rule: merge_number_only_with_next, level: 2}]   # "5.1" and its title are separate entries
+      # Section numbers are detached from their titles ("Taxes" | "2.3" | "Net Working Capital 2.4"),
+      # first sections hang under the previous chapter, promoted subheadings fill the gap; 1.1 is absent.
+      patches:
+        - {rule: rebuild_numbered_sections, level: 2}
+        - {rule: insert, level: 2, title: "1.1 What Is Corporate Finance?", page: 34, after: {level: 1, match: '^Chapter 1\b'}}
     chapter_ranges: {}
     routing: {inline_formula: true}
 

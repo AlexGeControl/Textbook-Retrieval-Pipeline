@@ -19,8 +19,6 @@ import pymupdf
 
 # "1.1 Applications" / "5-1: Review" -> chapter prefix 1 / 5
 _SECTION_PREFIX = re.compile(r"^\s*(\d+)[-.]\d+\b")
-# "5.1" and nothing else: a section number the publisher split from its title (corpfin)
-_NUMBER_ONLY = re.compile(r"^\s*(\d+[-.]\d+)\s*$")
 # Anything that looks numbered, for the probe's per-level statistics only.
 _NUMBERED_TITLE = re.compile(r"^\s*(?:chapter\s+)?\d+\b", re.IGNORECASE)
 
@@ -108,6 +106,9 @@ class Change:
     page: int  # 1-based, as in the outline
     old: str
     new: str
+    note: str = (
+        ""  # merged | merged, moved to chapter N | demoted to level L | unpaired id | inserted
+    )
 
 
 def _number_from_children(toc: list[list], level: int) -> tuple[list[list], list[Change]]:
@@ -129,26 +130,155 @@ def _number_from_children(toc: list[list], level: int) -> tuple[list[list], list
     return out, changes
 
 
-def _merge_number_only_with_next(toc: list[list], level: int) -> tuple[list[list], list[Change]]:
-    """Join a number-only entry ("5.1") at `level` with the next entry at the same level
-    ("The Payback Period Method") into "5.1 The Payback Period Method"; the second entry is
-    removed, its children stay (they now follow the merged entry)."""
-    out: list[list] = []
-    changes = []
-    skip = -1
+def _rebuild_numbered_sections(
+    toc: list[list], level: int, id_pattern: str = r"(\d+)\.(\d+)"
+) -> tuple[list[list], list[Change]]:
+    """Rebuild sections at `level` whose numbers the publisher detached from their titles.
+
+    The corpfin deviation: the outline stream at `level` reads "<title> <id>" with entry
+    boundaries in the wrong places ("Taxes" | "2.3" | "Net Working Capital 2.4"), the first
+    section of a chapter is hosted under the previous chapter ("Options 22.1" under Chapter 21),
+    and a promoted subheading stands where the missing first section should be.
+
+    1. Each `level` entry is split into a text token and id tokens (entries at other levels
+       pass through untouched, so level+1 children keep following their section).
+    2. A run of ids pairs with the tail of the run of titles right before it ("Bank Loans",
+       "International Bonds", "15.4", "15.5"); earlier titles in the run are leftovers. A pair
+       becomes one entry "<id> <title>" at the title's position and page; the id-only entry
+       disappears. An entry that already reads "<id> <title>" is left alone.
+    3. A merged section whose id chapter differs from its host chapter moves (with its
+       trailing deeper entries) to just after the level-1 entry carrying that chapter number.
+    4. Leftover text entries inside a chapter are demoted one level (they are subheadings or
+       boxed features); leftovers outside any chapter, and ids nobody could pair, are left
+       as-is and reported. Nothing is invented: a missing first section needs `insert`.
+    """
+    rx_id = re.compile(id_pattern)
+    parent_level = level - 1
+
+    def parent_number(title: str) -> int | None:
+        m = re.search(r"\d+", title)
+        return int(m.group()) if m else None
+
+    # host chapter (parent index) of every entry
+    host: list[int | None] = []
+    cur: int | None = None
+    for i, (lvl, _t, _p) in enumerate(toc):
+        if lvl == parent_level:
+            cur = i
+        host.append(cur if lvl > parent_level else None)
+    parents_by_number = {
+        parent_number(t): i for i, (lvl, t, _p) in enumerate(toc) if lvl == parent_level
+    }
+
+    # tokens: ["other", toc index] | ["text", text, page, host, toc index] | ["id", id, page, host, toc index]
+    tokens: list[list] = []
     for i, (lvl, title, page) in enumerate(toc):
-        if i == skip:
+        if lvl != level:
+            tokens.append(["other", i])
             continue
-        if lvl == level and (m := _NUMBER_ONLY.match(title)):
-            j = i + 1
-            if j < len(toc) and toc[j][0] == level and not _NUMBER_ONLY.match(toc[j][1]):
-                new = f"{m.group(1)} {toc[j][1].strip()}"
-                out.append([lvl, new, page])
-                changes.append(Change(lvl, page, f"{title.strip()} | {toc[j][1].strip()}", new))
-                skip = j
+        ids = [f"{m.group(1)}.{m.group(2)}" for m in rx_id.finditer(title)]
+        text = re.sub(r"\s+", " ", rx_id.sub(" ", title)).strip()
+        if text:
+            tokens.append(["text", text, page, host[i], i])
+        for sid in ids:
+            tokens.append(["id", sid, page, host[i], i])
+
+    # Pair each run of ids with the tail of the run of texts right before it: "Bank Loans",
+    # "International Bonds", "15.4", "15.5" -> 15.4 Bank Loans, 15.5 International Bonds;
+    # "THE FINANCIAL MANAGER", "The Corporate Firm", "1.2" -> 1.2 The Corporate Firm and the
+    # earlier title is a leftover. Ids beyond the available texts stay unpaired.
+    pair: dict[int, int] = {}  # id token index -> text token index
+    used: set[int] = set()
+    text_run: list[int] = []
+    id_run: list[int] = []
+
+    def flush() -> None:
+        n = min(len(text_run), len(id_run))
+        for t, k in zip(text_run[len(text_run) - n :], id_run[:n]):
+            pair[k] = t
+            used.add(t)
+        text_run.clear()
+        id_run.clear()
+
+    for k, tok in enumerate(tokens):
+        if tok[0] == "text":
+            if id_run:
+                flush()
+            text_run.append(k)
+        elif tok[0] == "id":
+            id_run.append(k)
+    flush()
+    title_of: dict[int, str] = {t: tokens[k][1] for k, t in pair.items()}
+    id_entry_of: dict[int, int] = {t: tokens[k][4] for k, t in pair.items()}
+
+    out: list[list] = []
+    changes: list[Change] = []
+    moves: list[tuple[int, int]] = []  # (out index, target parent toc index)
+    for k, tok in enumerate(tokens):
+        if tok[0] == "other":
+            out.append(list(toc[tok[1]]))
+        elif tok[0] == "text":
+            _, text, page, h, entry = tok
+            in_chapter = h is not None and parent_number(toc[h][1]) is not None
+            if k in used:
+                sid = title_of[k]
+                new_title = f"{sid} {text}"
+                out.append([level, new_title, page])
+                target = parents_by_number.get(int(sid.split(".")[0]))
+                note = "merged"
+                if target is not None and target != h:
+                    moves.append((len(out) - 1, target))
+                    note = f"merged, moved to chapter {sid.split('.')[0]}"
+                same_entry = id_entry_of[k] == entry
+                if not (same_entry and toc[entry][1].strip() == new_title and "moved" not in note):
+                    old = text if same_entry else f"{text} | {sid}"
+                    changes.append(
+                        Change(
+                            level,
+                            page,
+                            toc[entry][1].strip() if same_entry else old,
+                            new_title,
+                            note,
+                        )
+                    )
+            elif in_chapter:
+                out.append([level + 1, text, page])
+                changes.append(Change(level, page, text, text, f"demoted to level {level + 1}"))
+            else:
+                out.append([level, text, page])
+        else:  # id
+            if k in pair:
                 continue
-        out.append([lvl, title, page])
+            out.append([level, tok[1], tok[2]])
+            changes.append(Change(level, tok[2], tok[1], tok[1], "unpaired id"))
+
+    # re-parent: move [entry + following deeper entries] to just after the target parent entry
+    for out_idx, target_toc_idx in sorted(moves, reverse=True):
+        end = out_idx + 1
+        while end < len(out) and out[end][0] > level:
+            end += 1
+        block = out[out_idx:end]
+        del out[out_idx:end]
+        target_entry = toc[target_toc_idx]
+        t = next(i for i, e in enumerate(out) if e == target_entry)
+        out[t + 1 : t + 1] = block
     return out, changes
+
+
+def _insert(
+    toc: list[list], level: int, title: str, page: int, after: dict
+) -> tuple[list[list], list[Change]]:
+    """Insert [level, title, page] right after the single entry matching `after`
+    ({level, match}); zero or several matches is an error."""
+    rx = re.compile(after["match"])
+    hits = [i for i, (lvl, t, _p) in enumerate(toc) if lvl == after["level"] and rx.search(t)]
+    if len(hits) != 1:
+        raise PatchError(
+            f"insert {title!r}: after={after} matched {len(hits)} entries, need exactly 1"
+        )
+    out = [list(e) for e in toc]
+    out.insert(hits[0] + 1, [level, title, page])
+    return out, [Change(level, page, "", title, "inserted")]
 
 
 def _rename(
@@ -175,7 +305,8 @@ def _rename(
 
 RULES = {
     "number_from_children": _number_from_children,
-    "merge_number_only_with_next": _merge_number_only_with_next,
+    "rebuild_numbered_sections": _rebuild_numbered_sections,
+    "insert": _insert,
     "rename": _rename,
 }
 
