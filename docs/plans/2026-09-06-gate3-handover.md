@@ -19,7 +19,7 @@ design doc or the plan; it tells you where they stand and what to expect.
 ## 1. State at handover
 
 - Branch `stages-1-4` in the main checkout (no worktree — `books/`, `work/`, `tests/fixtures/` are
-  untracked and would not exist in one). 22+ commits ahead of `main`. Tree clean.
+  untracked and would not exist in one). 20 commits ahead of `main` (`fbd01c6` + this fix). Tree clean.
 - `uv run pytest -q` → **73 passed, 4 deselected**. `uv run ruff check . && uv run ruff format --check .`
   clean.
 - Done and committed: Tasks 1–7 (gate 2 passed on bma ch05/ch06, `375de18`); `check_outputs` counts
