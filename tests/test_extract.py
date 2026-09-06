@@ -67,7 +67,7 @@ def test_check_outputs_reports_missing_files(tmp_path):
 
 
 def test_check_outputs_rejects_page_mismatch(table_cache):
-    with pytest.raises(ExtractError, match="covers 2 pages, chapter.pdf has 3"):
+    with pytest.raises(ExtractError, match="2 pages, chapter.pdf has 3"):
         check_outputs(table_cache, 3, stem="table")
 
 
@@ -104,3 +104,33 @@ def test_mineru_config_path(monkeypatch):
     assert mineru_config_path() == Path.home() / "mineru.json"
     monkeypatch.setenv("MINERU_TOOLS_CONFIG_JSON", "/abs/x.json")
     assert mineru_config_path() == Path("/abs/x.json")
+
+
+def _write_hybrid_auto(root, middle_pages, content_pages, stem="chapter"):
+    """Minimal MinerU-shaped output: _middle.json with `middle_pages` pdf_info entries and a
+    content_list whose blocks span `content_pages` pages (a trailing blank page has no block)."""
+    d = root / stem / "hybrid_auto"
+    (d / "images").mkdir(parents=True)
+    (d / f"{stem}.md").write_text("")
+    cl = [
+        {"type": "text", "text": "x", "bbox": [0, 0, 1, 1], "page_idx": i}
+        for i in range(content_pages)
+    ]
+    (d / f"{stem}_content_list.json").write_text(json.dumps(cl))
+    (d / f"{stem}_content_list_v2.json").write_text(json.dumps([[b] for b in cl]))
+    (d / f"{stem}_middle.json").write_text(
+        json.dumps({"pdf_info": [{"page_idx": i} for i in range(middle_pages)]})
+    )
+    return d
+
+
+def test_check_outputs_accepts_a_blank_trailing_page(tmp_path):
+    # strat ch05 p33 (2026-09-06): mineru saw 34 pages, the last one empty -> no content_list block
+    d = _write_hybrid_auto(tmp_path, middle_pages=34, content_pages=33)
+    check_outputs(d, 34)
+
+
+def test_check_outputs_page_count_comes_from_middle_json(tmp_path):
+    d = _write_hybrid_auto(tmp_path, middle_pages=33, content_pages=33)
+    with pytest.raises(ExtractError, match="33 pages.*chapter.pdf has 34"):
+        check_outputs(d, 34)

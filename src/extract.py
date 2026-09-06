@@ -116,11 +116,19 @@ def check_outputs(hybrid_auto: Path, expected_pages: int, stem: str = STEM) -> N
     ]
     if missing:
         raise ExtractError(f"{hybrid_auto}: missing {', '.join(missing)}")
-    content_list = json.loads((hybrid_auto / f"{stem}_content_list.json").read_text())
-    pages = max(b["page_idx"] for b in content_list) + 1 if content_list else 0
+    # Page count comes from _middle.json: mineru writes one pdf_info entry per page, blank or not.
+    # content_list has no block for a blank page (strat ch05 p33), so its max page_idx undercounts.
+    middle = json.loads((hybrid_auto / f"{stem}_middle.json").read_text())
+    pages = len(middle.get("pdf_info") or [])
     if pages != expected_pages:
         raise ExtractError(
-            f"{hybrid_auto}: content_list covers {pages} pages, chapter.pdf has {expected_pages}"
+            f"{hybrid_auto}: {stem}_middle.json has {pages} pages, chapter.pdf has {expected_pages}"
+        )
+    content_list = json.loads((hybrid_auto / f"{stem}_content_list.json").read_text())
+    beyond = [b["page_idx"] for b in content_list if b["page_idx"] >= pages]
+    if beyond:
+        raise ExtractError(
+            f"{hybrid_auto}: content_list references page {max(beyond)} beyond {pages} pages"
         )
 
 
