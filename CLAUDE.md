@@ -35,8 +35,9 @@ normalization rules are yours. Open decisions are listed in §9.
 
 ## Commands
 
-`make sync-server`, `make weights` and `make serve` exist (Makefile, verified
-2026-09-06; run in that order on a fresh box); the rest are created in the
+`make sync-server`, `make server-models`, `make client-models` and `make serve`
+exist (Makefile, verified 2026-09-06; that is the fresh-server-box order — a
+client needs only `uv sync && make client-models`); the rest are created in the
 first plan. Keep this list in sync.
 
 - `uv run pytest` — unit tier, no network; must pass before every commit
@@ -45,8 +46,14 @@ first plan. Keep this list in sync.
 - `make chapter BOOK=<id> CH=<slug>` — stages 2–4 end to end for one chapter
 - `make sync-server` — install/refresh the `server` extra via the TUNA
   mirror and restore the pypi.org `uv.lock`. Never commit a mirror lock.
-- `make weights` — `hf download` of `VLM_REPO@VLM_REVISION` (pinned commit)
-  into the HF cache; idempotent. `HF_ENDPOINT=https://hf-mirror.com` if slow.
+- `make server-models` — `hf download` of the VLM `VLM_REPO@VLM_REVISION`
+  (pinned commit, ~2.2 GB) into the HF cache; idempotent, resumes, retries
+  stalls. Direct HF works from here; `hf-mirror.com` does not (huggingface_hub
+  metadata check fails) — never set `HF_ENDPOINT` to it.
+- `make client-models` — the PDF-Extract-Kit models the hybrid client runs
+  locally (`KIT_REPO@KIT_REVISION`, ~1.06 GB: OCR det/rec, PP-DocLayoutV2
+  layout, UniMERNet MFR for inline formulas); same retry loop.
+  `KIT_MODELS="$(make -s print-kit-base)"` skips the MFR (`-f false` books).
 - `make serve` — VLM server on GPU 0, :30000; server box only. Resolves the
   pinned snapshot offline and passes `--model`. Vars: `GPU PORT GPU_MEM_UTIL
   VLM_REPO VLM_REVISION`. First request takes ~26 s (warm-up).
@@ -54,7 +61,7 @@ first plan. Keep this list in sync.
 ## Layout
 
 ```
-Makefile                   sync-server, weights, serve; chapter is added by the first plan
+Makefile                   sync-server, server-models, client-models, serve; chapter: first plan
 books/<id>/<id>.pdf        PDF landing zone; gitignored, never leaves this machine
 books/manifest.json        hashes/page counts from scripts/check_books.py (committed)
 config/books.yaml          per-book pdf path, TOC hints, routing flags
@@ -85,8 +92,9 @@ docs/plans/                Superpowers design/plan output
   stage, no heading-refinement hook until a gate fails.
 - Book PDFs, `work/`, fixture PDFs and MinerU outputs never enter git. Only
   certified notes enter the vault.
-- Stage 2 outputs stay MinerU-native (`content.md`, layout JSON, `images/`).
-  Don't reshape them.
+- Stage 2 outputs stay MinerU-native: `<stem>/hybrid_auto/` holding `<stem>.md`,
+  `<stem>_content_list.json` (+`_v2`), `<stem>_middle.json`, `images/`. Don't
+  reshape them.
 - `qa_report.json` follows the schema in HANDOVER §6 exactly. Validate it in
   stage 4.
 
@@ -97,7 +105,10 @@ docs/plans/                Superpowers design/plan output
   - text-only control page at `tests/fixtures/bkm/text-only.pdf`
   - table page at `tests/fixtures/bma/table.pdf`
   - display-formula page at `tests/fixtures/bma/formula.pdf`
-  - image page at `tests/fixtures/bkm/image.pdf`. 
+  - chart page at `tests/fixtures/bkm/chart.pdf`.
+- The control page (`bkm/text-only.pdf`) carries two decorative check-mark
+  icons that mineru types `image`: assert zero table/formula blocks there, not
+  zero image blocks. mineru types plots as `chart`, not `image`.
 - RED for extraction work is a failing structural assertion: guardrail hunk
   count > 0 on the control page, table row/column count ≠ crop, expected
   formula block absent, LaTeX not parseable, heading tree ≠ `meta.json`.
@@ -125,14 +136,21 @@ docs/plans/                Superpowers design/plan output
 
 ## Environment notes
 
-- Model weights: `MinerU2.5-Pro-2605-1.2B` (mineru 3.4.5's default), pinned to
-  commit `bff20d4…` as `VLM_REVISION` in the Makefile; `make weights` fetches
-  it with the venv's `hf` CLI and `make serve` loads that snapshot offline via
-  `--model`, so nothing is downloaded at start. Bump the pin only after
-  validating the new commit.
+- Server model: `MinerU2.5-Pro-2605-1.2B` (mineru 3.4.5's default), pinned to
+  commit `bff20d4…` as `VLM_REVISION`; `make server-models` fetches it with the
+  venv's `hf` CLI and `make serve` loads that snapshot offline via `--model`.
+  Bump a pin only after validating the new commit.
+- Client models: `PDF-Extract-Kit-1.0` subset pinned as `KIT_REVISION`
+  (~1.06 GB; the UniMERNet MFR does *inline* formulas locally, display
+  formulas/tables/charts go to the VLM). Run `make client-models` before the
+  first `hybrid-http-client` run on any machine — otherwise mineru
+  auto-downloads without the stall-proof retry loop. HF large files run fast
+  then stall to 0 KB/s; ModelScope (`MINERU_MODEL_SOURCE=modelscope`) is steady
+  but ~0.4 MB/s.
 - Shanghai network: wheels >~180 MB stall from PyPI's origin CDN (small ones
-  are fine) → `make sync-server` (TUNA). Model weights: ModelScope mirror if
-  HF is slow. Probe with a full large file — a 20 MB range hides the stall.
+  are fine) → `make sync-server` (TUNA). Model weights: the `*-models` targets
+  retry through HF stalls; ModelScope is the slow fallback. Probe with a full
+  large file — a 20 MB range hides the stall.
 - Changing uv's index relocks `uv.lock` (mirror URLs + different platform
   markers) and `uv lock` does not switch back; `make sync-server` handles
   the backup/compare/restore. Don't set `UV_DEFAULT_INDEX` globally.

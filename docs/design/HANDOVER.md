@@ -63,13 +63,14 @@ default) pinned to commit `bff20d4…` in the Makefile. Serves on SM120
 (Blackwell) with driver 580.
 
 ```bash
-# server box (Linux): client + server extras, weights, server — in this order
-make sync-server   # uv sync --extra server via the TUNA mirror; uv.lock stays on pypi.org
-make weights       # hf download VLM_REPO@VLM_REVISION into the HF cache (idempotent)
-make serve         # GPU 0, :30000, --gpu-memory-utilization 0.3, --model <cached snapshot>, offline
+# server box (Linux): extras, both model sets, server — in this order
+make sync-server     # uv sync --extra server via the TUNA mirror; uv.lock stays on pypi.org
+make server-models   # hf download of the VLM (VLM_REPO@VLM_REVISION, ~2.2 GB), idempotent
+make client-models   # PDF-Extract-Kit models the hybrid client runs locally (~1.06 GB)
+make serve           # GPU 0, :30000, --gpu-memory-utilization 0.3, --model <cached snapshot>, offline
 
-# any client (server box or Mac): client extra only
-uv sync
+# any client (server box or Mac): client extra + client models
+uv sync && make client-models
 uv run mineru -p <chapter.pdf> -o <outdir> -b hybrid-http-client \
   -u http://<server>:30000 --effort high
 ```
@@ -80,6 +81,13 @@ Notes:
   is the server, in the Linux-only `server` extra. `[core]`/`[all]` add only
   accelerate/gradio/mlx — for in-process `vlm-engine` and the Gradio UI,
   neither used here.
+- Every client also needs mineru's pipeline models (`opendatalab/PDF-Extract-Kit-1.0`
+  subset, ~1.0 GB: OCR det/rec, PP-DocLayoutV2 layout, unimernet MFR for
+  *inline* formulas — display formulas, tables and charts go to the VLM).
+  `make client-models` fetches them (pinned `KIT_REVISION`, stall-proof retry
+  loop); without it mineru auto-downloads on first use and may stall.
+  `-f false` drops the MFR (the `strat` routing case:
+  `KIT_MODELS="$(make -s print-kit-base)"`).
 - Backend is `hybrid-http-client`, **not** `vlm-http-client` (hybrid pulls
   running text from the PDF text layer; vlm transcribes everything
   generatively — rejected for hallucination risk on digits).
@@ -91,8 +99,10 @@ Notes:
   mineru allows).
 - Shanghai network: wheels >~180 MB (torch, vLLM, CUDA libs) stall from
   PyPI's origin CDN; `make sync-server` routes them through TUNA and
-  restores the pypi.org lock. Model weights: `make weights
-  HF_ENDPOINT=https://hf-mirror.com` if Hugging Face is slow.
+  restores the pypi.org lock. Model weights download directly from
+  huggingface.co (reachable here); `hf-mirror.com` fails huggingface_hub's
+  metadata check — do not use it. mineru's documented fallback for pipeline
+  models is `MINERU_MODEL_SOURCE=modelscope`.
 - First request after `make serve` takes ~26 s (one-off warm-up; steady
   state is milliseconds). Warm the server before timing benchmarks (§7.5).
 - MinerU supports an optional LLM-aided heading refinement hook via
@@ -105,7 +115,7 @@ Notes:
 
 ```
 pipeline/
-  Makefile                # sync-server, weights, serve (verified); chapter (first plan)
+  Makefile                # sync-server, server-models, client-models, serve (verified); chapter (first plan)
   config/
     books.yaml            # per-book: pdf path, TOC hints, routing flags
     readings/             # per-course chapter lists (bkm.yaml, bkm.yaml)
@@ -134,9 +144,12 @@ pipeline/
 
 ### Stage 2 — extraction (`extract.py`)
 - Runs mineru `hybrid-http-client` on `chapter.pdf`.
-- Output (MinerU-native, don't fight it): `content.md`,
-  layout/content-list JSON (block types + bboxes + confidence where
-  available), `images/` figure and table crops.
+- Output (MinerU-native, don't fight it), verified on the fixtures 2026-09-06:
+  `<stem>/hybrid_auto/<stem>.md`; `<stem>_content_list.json` (flat blocks:
+  type, page_idx, bbox, text | table_body HTML | img_path); `_content_list_v2.json`
+  (per page, richer types, nested `content`); `<stem>_middle.json` (spans);
+  `images/` figure and table crops. One VLM call per page (layout) plus one
+  per table/formula/chart block.
 - Per-book routing flags from `books.yaml` (e.g. inline-formula toggle off
   for `strat`).
 
@@ -146,8 +159,8 @@ pipeline/
   line-end hyphenation repair, drop running headers/footers and page
   numbers, Unicode NFKC. Expect iteration here — normalization quality
   determines false-positive rate, which determines review cost.
-- Diff against `content.md` running text **excluding** blocks typed
-  table/formula/figure-caption in the layout JSON.
+- Diff against the stage-2 markdown (`<stem>.md`) running text **excluding**
+  blocks typed table/formula/figure-caption in the layout JSON.
 - Output: list of residual hunks with page + block anchors. Target state on
   a clean chapter: zero hunks.
 
@@ -194,8 +207,8 @@ Write this as a skill/instruction file the review session loads. Rules:
    endpoint answers on :30000 from the client machine. **Passed 2026-09-06**
    from the server box; the Mac-over-Tailscale check is pending.
 2. **Stage 2 on one benchmark chapter** (start with `corpfin`, a
-   formula+table-heavy chapter — hardest case first). Gate: content.md +
-   layout JSON + crops produced end-to-end.
+   formula+table-heavy chapter — hardest case first). Gate: `<stem>.md` +
+   content-list/middle JSON + crops produced end-to-end.
 3. **Stages 3–4** on that chapter. Gate: diff false-positive rate low enough
    that hunk list is reviewable by hand (< ~10 spurious hunks/chapter after
    normalization tuning); qa_report.json validates against schema.
@@ -227,3 +240,16 @@ Write this as a skill/instruction file the review session loads. Rules:
 - Diff normalization rules — expect the most iteration time here.
 - Whether stage 2–4 run as one `make chapter BOOK=x CH=y` entrypoint
   (recommended) or separate invocations.
+- Added after the setup work (2026-09-06):
+  - Which stage-2 JSON anchors stages 3–4: `_content_list.json` (flat, v1),
+    `_content_list_v2.json` (per page, richer types) or `_middle.json` (spans).
+  - Block-type vocabulary in rules and `qa_report.json`: mineru's `table`,
+    `equation`, `chart`, `image` (+ captions) vs this brief's
+    "table/formula/figure"; whether `chart`/`image` blocks are flagged.
+  - Client model resolution: rely on mineru resolving `main` (pins agree
+    today) vs `MINERU_MODEL_SOURCE=local` + `mineru.json` pointing at the
+    pinned snapshot for fully deterministic runs.
+  - Routing flags → CLI (`inline_formula` → `-f`, plus `-t`,
+    `--image-analysis`, `--lang`), and whether the server-box client should
+    use GPU 1 (A6000) rather than share GPU 0 with vLLM.
+  - Mac client: verify Tailscale reachability before any Mac-side stage.
