@@ -1,0 +1,142 @@
+# CLAUDE.md — textbook retrieval pipeline
+
+Born-digital textbook chapters → certified Obsidian markdown (faithful text,
+LaTeX, tables, figure crops). Output is companion context for downstream
+lecture-note synthesis; synthesis itself is out of scope here.
+
+Design brief: `docs/design/HANDOVER.md`. Read it before brainstorming or
+planning any stage. Design principles (§1), component contracts (§6) and
+build order/gates (§7) are fixed. Function names, module boundaries and
+normalization rules are yours. Open decisions are listed in §9.
+
+## Stack
+
+- Python managed by `uv`. Always `uv run …` / `uv add …` / `uv sync …`; never
+  bare `python` or `pip`. Server box: `uv sync --extra server` (a plain
+  `uv sync` prunes vllm — 115 packages) and `uv run --no-sync` for server
+  commands. Plain `uv run` is inexact (no pruning), so `uv run pytest` is safe.
+- Pins (verified 2026-09-06): mineru 3.4.5 (caps vllm `<0.22` → 0.20.2),
+  torch 2.11.0+cu130. `[tool.uv]` constraint `fastapi<0.137` is required —
+  vllm 0.20.x's prometheus middleware 500s on newer FastAPI. Extras:
+  `mineru[pipeline]` = client, `mineru[vllm]` = server; `[core]`/`[all]` are
+  not needed.
+- Extraction: MinerU, backend `hybrid-http-client`, `--effort high`. Never
+  `vlm-http-client` (generative transcription of running text — rejected).
+- Text layer, TOC, guardrail diff: PyMuPDF. AGPL — personal pipeline only, do
+  not vendor into work code.
+- Inference server: vLLM serving `MinerU2.5-Pro-2605-1.2B`, OpenAI-compatible
+  HTTP on port 30000, pinned to GPU 0 (RTX PRO 6000 Blackwell; GPU 1 is an
+  RTX A6000). Client reads `MINERU_SERVER_URL`. Clients need no GPU (mineru
+  auto-uses CUDA/MPS if present); the MacBook reaches the server over
+  Tailscale.
+- Tests: pytest. Unit tier is the default (no network). `-m integration`
+  needs the live server.
+- Lint/format: ruff.
+
+## Commands
+
+`make sync-server`, `make weights` and `make serve` exist (Makefile, verified
+2026-09-06; run in that order on a fresh box); the rest are created in the
+first plan. Keep this list in sync.
+
+- `uv run pytest` — unit tier, no network; must pass before every commit
+- `uv run pytest -m integration` — requires `MINERU_SERVER_URL` reachable
+- `uv run ruff check . && uv run ruff format --check .`
+- `make chapter BOOK=<id> CH=<slug>` — stages 2–4 end to end for one chapter
+- `make sync-server` — install/refresh the `server` extra via the TUNA
+  mirror and restore the pypi.org `uv.lock`. Never commit a mirror lock.
+- `make weights` — `hf download` of `VLM_REPO@VLM_REVISION` (pinned commit)
+  into the HF cache; idempotent. `HF_ENDPOINT=https://hf-mirror.com` if slow.
+- `make serve` — VLM server on GPU 0, :30000; server box only. Resolves the
+  pinned snapshot offline and passes `--model`. Vars: `GPU PORT GPU_MEM_UTIL
+  VLM_REPO VLM_REVISION`. First request takes ~26 s (warm-up).
+
+## Layout
+
+```
+Makefile                   sync-server, weights, serve; chapter is added by the first plan
+books/<id>/<id>.pdf        PDF landing zone; gitignored, never leaves this machine
+books/manifest.json        hashes/page counts from scripts/check_books.py (committed)
+config/books.yaml          per-book pdf path, TOC hints, routing flags
+config/readings/*.yaml     per-course chapter lists (mitx, fmba)
+src/split.py               stage 1  chapter splitter
+src/extract.py             stage 2  mineru wrapper
+src/guardrail.py           stage 3  PyMuPDF text-layer diff
+src/qa_report.py           stage 4  qa_report.json builder
+src/vault_commit.py        stage 5b move certified output into vault
+scripts/check_books.py     landing-zone intake check; run after adding any PDF
+.claude/skills/chapter-review/SKILL.md   stage 5 reviewer instructions
+work/                      per-chapter working dirs (gitignored)
+metrics/                   benchmark + per-chapter metrics
+tests/fixtures/            fixture PDFs + cached MinerU outputs (gitignored)
+docs/design/               handover and design docs, loaded on demand
+docs/plans/                Superpowers design/plan output
+```
+
+## Hard rules
+
+- Text layer wins. VLM output is used only for blocks typed table, formula
+  or figure. Never let a VLM transcribe running text.
+- Review patches, never regenerates. No "rewrite this section" in code,
+  prompts or skills.
+- Fail loudly. Missing or wrong PDF outline → error naming book and chapter.
+  Never guess a page range.
+- Do not pre-build fallbacks (HANDOVER §8): no OCR path, no Qwen refinement
+  stage, no heading-refinement hook until a gate fails.
+- Book PDFs, `work/`, fixture PDFs and MinerU outputs never enter git. Only
+  certified notes enter the vault.
+- Stage 2 outputs stay MinerU-native (`content.md`, layout JSON, `images/`).
+  Don't reshape them.
+- `qa_report.json` follows the schema in HANDOVER §6 exactly. Validate it in
+  stage 4.
+
+## Testing conventions
+
+- Fixtures live in `tests/fixtures/<book>/<set>.pdf`, 1~4 pages each,
+  The baseline set comes from MITx MicroMaster in Finance, Foundations of Modern Finance suggested readings. A fetch/split script builds them; nothing is committed. The stratified baseline set: 
+  - text-only control page at `tests/fixtures/bkm/text-only.pdf`
+  - table page at `tests/fixtures/bma/table.pdf`
+  - display-formula page at `tests/fixtures/bma/formula.pdf`
+  - image page at `tests/fixtures/bkm/image.pdf`. 
+- RED for extraction work is a failing structural assertion: guardrail hunk
+  count > 0 on the control page, table row/column count ≠ crop, expected
+  formula block absent, LaTeX not parseable, heading tree ≠ `meta.json`.
+- No golden-file byte equality on VLM-generated blocks. MinerU output is not
+  deterministic; such tests are forbidden.
+- Unit tier runs against cached MinerU outputs in `tests/fixtures/cache/`.
+  Integration tier regenerates the cache against the live server.
+- Guardrail normalization is the highest-iteration area. Each normalization
+  rule gets its own failing test before implementation.
+
+## Superpowers — project deviations
+
+- Brainstorming: confirm and formalize `docs/design/HANDOVER.md`. Do not
+  relitigate fixed items; spend the session on §9 open decisions.
+- Use `executing-plans` (batches with human checkpoints), not
+  `subagent-driven-development`. Single operator, GPU server in the loop.
+- Plans follow the build order in HANDOVER §7. Each task's verification step
+  is the gate criterion for that stage, not just "tests pass".
+- Verification before completion means pasting test output and
+  `qa_report.json` counts. "Looks right" is not evidence.
+- Once brainstorming writes its design doc to `docs/plans/`, that doc
+  supersedes HANDOVER.md. Update the pointer at the top of this file.
+- Do not use git worktrees. Work on a branch in the main checkout: `books/`,
+  `work/` and `tests/fixtures/` are untracked and do not exist in a worktree.
+
+## Environment notes
+
+- Model weights: `MinerU2.5-Pro-2605-1.2B` (mineru 3.4.5's default), pinned to
+  commit `bff20d4…` as `VLM_REVISION` in the Makefile; `make weights` fetches
+  it with the venv's `hf` CLI and `make serve` loads that snapshot offline via
+  `--model`, so nothing is downloaded at start. Bump the pin only after
+  validating the new commit.
+- Shanghai network: wheels >~180 MB stall from PyPI's origin CDN (small ones
+  are fine) → `make sync-server` (TUNA). Model weights: ModelScope mirror if
+  HF is slow. Probe with a full large file — a 20 MB range hides the stall.
+- Changing uv's index relocks `uv.lock` (mirror URLs + different platform
+  markers) and `uv lock` does not switch back; `make sync-server` handles
+  the backup/compare/restore. Don't set `UV_DEFAULT_INDEX` globally.
+- Two GPUs: `nvidia-smi` index 0 = RTX PRO 6000 Blackwell (SM120), 1 = RTX
+  A6000. Use `CUDA_DEVICE_ORDER=PCI_BUS_ID` so CUDA indices match.
+- Versions are pinned (see Stack); re-verify against MinerU/vLLM docs before
+  bumping — both move fast.

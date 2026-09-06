@@ -1,0 +1,24 @@
+# Book content never leaves this machine (HANDOVER §1). Manifest is metadata only.
+books/**
+!books/README.md
+!books/manifest.json
+!books/*/
+!books/*/.gitkeep
+
+# Per-chapter working dirs and fixture PDFs / cached MinerU outputs
+work/**
+!work/.gitkeep
+tests/fixtures/**
+!tests/fixtures/cache/
+!tests/fixtures/cache/.gitkeep
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+
+# Claude Code local state
+.claude/settings.local.json
+CLAUDE.local.md

@@ -1,0 +1,107 @@
+{
+  "bkm": {
+    "pdf": "books/bkm/bkm.pdf",
+    "sha256": "d5921c7d5f5de0cef53f5edf2fdd658aa8fd5fab2cc46c50529441e4ccd1c702",
+    "pages": 1073,
+    "text_layer_sample": "21/21",
+    "outline_entries": 832,
+    "outline_top_level": 21,
+    "first_outline_titles": [
+      "Cover",
+      "Investments",
+      "About the Authors",
+      "Brief Contents",
+      "Contents"
+    ]
+  },
+  "bma": {
+    "pdf": "books/bma/bma.pdf",
+    "sha256": "1c772781a8bf47f9422b9b0a82248cbc2f266116420ac833d8efd184a5c54172",
+    "pages": 1057,
+    "text_layer_sample": "21/21",
+    "outline_entries": 850,
+    "outline_top_level": 22,
+    "first_outline_titles": [
+      "Cover",
+      "Principles of Corporate Finance",
+      "Dedication",
+      "About the Authors",
+      "Preface"
+    ]
+  },
+  "ops": {
+    "pdf": "books/ops/ops.pdf",
+    "sha256": "12aaba0fb8f55b4a2545b68d41f9da6b729a224f4e8f2523503809f6e6587335",
+    "pages": 1284,
+    "text_layer_sample": "21/21",
+    "outline_entries": 596,
+    "outline_top_level": 31,
+    "first_outline_titles": [
+      "Table of Contents and Preface",
+      "Chapter 1: Introduction",
+      "Chapter 2: The Process View of the Organization",
+      "Chapter 3: Understanding the Supply Process: Evaluating Process Capacity",
+      "Chapter 4: Estimating and Reducing Labor Costs"
+    ]
+  },
+  "strat": {
+    "pdf": "books/strat/strat.pdf",
+    "sha256": "9e1b99739b39d19aa264ebadc7f1f40f6b88d5ad7056bb4d9b703efdf53cab53",
+    "pages": 509,
+    "text_layer_sample": "21/21",
+    "outline_entries": 442,
+    "outline_top_level": 17,
+    "first_outline_titles": [
+      "Cover",
+      "Title Page",
+      "Copyright Page",
+      "Dedication",
+      "About the Authors"
+    ]
+  },
+  "stats": {
+    "pdf": "books/stats/stats.pdf",
+    "sha256": "b3bc92c9f04c19b7d9a094d4d6064c079e0bcc1766cc915b3eebe85b7ddc9d79",
+    "pages": 1217,
+    "text_layer_sample": "21/21",
+    "outline_entries": 603,
+    "outline_top_level": 52,
+    "first_outline_titles": [
+      "Brief Contents",
+      "Contents",
+      "About the Authors",
+      "Preface",
+      "Data and Statistics"
+    ]
+  },
+  "corpfin": {
+    "pdf": "books/corpfin/corpfin.pdf",
+    "sha256": "d276dd816bfb64bdaa10c779ec7998d9687f9a4434770afa2bfe044477ab7b63",
+    "pages": 1055,
+    "text_layer_sample": "21/21",
+    "outline_entries": 828,
+    "outline_top_level": 44,
+    "first_outline_titles": [
+      "About the Authors",
+      "Preface",
+      "Pedagogy",
+      "Comprehensive Teaching and Learning Package and Learning Package",
+      "Acknowledgments"
+    ]
+  },
+  "acct": {
+    "pdf": "books/acct/acct.pdf",
+    "sha256": "b9d2dc5aefb49579e5eebfd4fa72e19c8877c48e7578c288f6064b81cdccade5",
+    "pages": 1179,
+    "text_layer_sample": "21/21",
+    "outline_entries": 328,
+    "outline_top_level": 19,
+    "first_outline_titles": [
+      "Cover",
+      "Title Page",
+      "Copyright Page",
+      "Developing Successful Business Majors",
+      "About the Authors"
+    ]
+  }
+}
