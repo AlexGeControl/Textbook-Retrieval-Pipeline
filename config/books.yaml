@@ -9,7 +9,10 @@
 #   body_range          {begin, end} 0-based pdf indices sampled by scripts/check_books.py
 #   toc.source          outline | manual — stage 1 uses the PDF outline unless set to manual
 #   toc.chapter_level   outline level that holds chapters (null = not yet measured)
-#   toc.chapter_pattern regex on the outline title; group 1 = chapter number (null = unusable)
+#   toc.chapter_pattern regex on the (normalized) outline title; group 1 = chapter number
+#   toc.normalize       optional list of in-memory outline fixes applied before the pattern,
+#                       e.g. [number_from_sections] when chapter titles carry no number but
+#                       their first section does ("1.1 ..."); steps live in src/toc.py
 #   toc.page_offset     printed = pdf_1based - page_offset; fallback when page labels are
 #                       missing; null = unknown (stage 1 then fails if labels are absent)
 #   chapter_ranges      chNN: [first_idx, last_idx] (0-based, inclusive) — overrides the
@@ -48,7 +51,9 @@ books:
     profile: diagrams+math
     pdf: books/ops/ops.pdf
     body_range: {begin: 7, end: 1284}
-    toc: {source: outline, chapter_level: 1, chapter_pattern: '^Chapter (\d+):', page_offset: null}
+    # Reflowed e-book: no printed page numbers per PDF page (the original book's breaks appear
+    # inline as "Page N" markers). page_offset 0 = report PDF 1-based pages as printed pages.
+    toc: {source: outline, chapter_level: 1, chapter_pattern: '^Chapter (\d+):', page_offset: 0}
     chapter_ranges: {}
     routing: {inline_formula: true}
 
@@ -70,7 +75,7 @@ books:
     profile: formulas+tables
     pdf: books/stats/stats.pdf
     body_range: {begin: 2, end: 1211}
-    toc: {source: outline, chapter_level: 1, chapter_pattern: null, page_offset: null}  # chapter titles carry no number
+    toc: {source: outline, chapter_level: 1, chapter_pattern: '^(\d+): ', normalize: [number_from_sections], page_offset: 31}
     chapter_ranges: {}
     routing: {inline_formula: true}
 
@@ -81,7 +86,7 @@ books:
     profile: formulas+tables-hardest
     pdf: books/corpfin/corpfin.pdf
     body_range: {begin: 4, end: 1055}
-    toc: {source: outline, chapter_level: 1, chapter_pattern: '^Chapter (\d+)\b', page_offset: null}
+    toc: {source: outline, chapter_level: 1, chapter_pattern: '^Chapter (\d+)\b', page_offset: 33}  # measured via scripts/probe_toc.py
     chapter_ranges: {}
     routing: {inline_formula: true}
 
@@ -92,6 +97,7 @@ books:
     profile: tables-everywhere
     pdf: books/acct/acct.pdf
     body_range: {begin: 4, end: 1179}
-    toc: {source: outline, chapter_level: 2, chapter_pattern: null, page_offset: null}  # only 14/33 level-2 titles numbered
+    # Reflowed e-book with no printed page numbers at all. page_offset 0 = PDF 1-based pages.
+    toc: {source: outline, chapter_level: 2, chapter_pattern: '^CHAPTER (\d+):', page_offset: 0}
     chapter_ranges: {}
     routing: {inline_formula: true}

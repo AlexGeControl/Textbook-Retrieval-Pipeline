@@ -119,3 +119,56 @@ def test_write_chapter_produces_pdf_and_meta(book, tmp_path):
     assert chapter.page_count == 2
     assert "page 2 body" in chapter[0].get_text() and "page 3 body" in chapter[1].get_text()
     assert json.loads((tmp_path / "ch02" / "meta.json").read_text()) == meta
+
+
+SECTIONED_TOC = [
+    [1, "Preface", 1],
+    [1, "Data and Statistics", 2],
+    [2, "1.1  Applications", 2],
+    [2, "1.2  Data", 3],
+    [1, "Chapter 1 Appendix", 4],
+    [2, "Appendix 1.1  JMP", 4],
+    [1, "Descriptive Statistics", 5],
+    [2, "2.1 Summarizing", 5],
+]
+SECTIONED_CFG = {
+    "toc": {
+        "source": "outline",
+        "chapter_level": 1,
+        "chapter_pattern": r"^(\d+): ",
+        "normalize": ["number_from_sections"],
+        "page_offset": None,
+    },
+    "chapter_ranges": {},
+}
+
+
+def test_resolve_chapter_numbered_by_its_sections():
+    rng = resolve_chapter(SECTIONED_TOC, SECTIONED_CFG, "s", 1, 6)
+    # ch1 starts at page 2 (idx 1) and ends before "Chapter 1 Appendix" at page 4 (idx 3)
+    assert (rng.slug, rng.title, rng.first, rng.last, rng.toc_index) == (
+        "ch01",
+        "Data and Statistics",
+        1,
+        2,
+        1,
+    )
+    rng = resolve_chapter(SECTIONED_TOC, SECTIONED_CFG, "s", 2, 6)
+    assert (rng.first, rng.last, rng.toc_index) == (4, 5, 6)
+
+
+def test_sections_strategy_keeps_the_subtree(tmp_path):
+    doc = pymupdf.open()
+    for i in range(6):
+        doc.new_page(width=200, height=200).insert_text((20, 40), f"page {i}")
+    doc.set_toc(SECTIONED_TOC)
+    doc.set_page_labels([{"startpage": 0, "prefix": "", "style": "D", "firstpagenum": 1}])
+    doc.save(tmp_path / "s.pdf")
+    meta = build_meta(pymupdf.open(tmp_path / "s.pdf"), SECTIONED_CFG, "s", 1)
+    assert [s["number"] for s in meta["sections"]] == ["1.1", "1.2"]
+    assert meta["toc_subtree"] == [[2, "1.1  Applications", 1], [2, "1.2  Data", 2]]
+
+
+def test_sections_strategy_missing_chapter_fails_loudly():
+    with pytest.raises(SplitError, match=r"s ch07: no level-1 outline entry"):
+        resolve_chapter(SECTIONED_TOC, SECTIONED_CFG, "s", 7, 6)

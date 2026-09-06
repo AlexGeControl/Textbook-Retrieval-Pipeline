@@ -6,12 +6,12 @@ it, means every chapter the outline (or chapter_ranges) exposes.
 
 from __future__ import annotations
 
-import re
 from pathlib import Path
 
 import yaml
 
 from src.config import READINGS_DIR
+from src.toc import chapter_entries
 
 
 def load_readings(course: str, readings_dir: Path = READINGS_DIR) -> dict[str, list[int]] | None:
@@ -23,16 +23,7 @@ def load_readings(course: str, readings_dir: Path = READINGS_DIR) -> dict[str, l
 
 
 def outline_chapters(toc: list[list], book_cfg: dict) -> list[int]:
-    level = book_cfg["toc"].get("chapter_level")
-    pattern = book_cfg["toc"].get("chapter_pattern")
-    if level is None or pattern is None:
-        return []
-    rx = re.compile(pattern)
-    numbers = []
-    for lvl, title, _page in toc:
-        if lvl == level and (m := rx.search(title.strip())):
-            numbers.append(int(m.group(1)))
-    return numbers
+    return [e.number for e in chapter_entries(toc, book_cfg["toc"])]
 
 
 def list_chapters(

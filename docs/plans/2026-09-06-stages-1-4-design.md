@@ -42,10 +42,13 @@ content_list; whether a chart's generated data table is kept, dropped or collaps
   subsections at level 4. Ch. 5 = pdf indices 149–178 (printed 119–148); Ch. 6 = 179–213
   (printed 149–183). PyMuPDF page labels are present and correct; printed = index − 30
   (0-based), i.e. `page_offset` 31 in the 1-based convention `books.yaml` documents.
-- Chapter depth differs per book: bkm/bma/strat chapters at level 2 with numbered titles;
-  ops at level 1 (`Chapter N:`); stats and acct have unnumbered chapter titles. Stage 1
-  therefore takes `chapter_level` + `chapter_pattern` per book and a per-chapter
-  `chapter_ranges` override.
+- Chapter depth differs per book: bkm/bma/strat/acct chapters at level 2 with numbered
+  titles; ops/corpfin at level 1 (`Chapter N`); stats has unnumbered chapter titles but
+  numbered sections (`1.1 …`). Stage 1 takes `chapter_level` + `chapter_pattern` per book,
+  optional `normalize` steps, and a per-chapter `chapter_ranges` emergency override (a chapter
+  resolved only by override has no outline entry, hence no sections).
+- ops and acct are reflowed e-books without printed page numbers per PDF page; their
+  `page_offset` is 0 by explicit decision (printed = PDF 1-based page).
 - `books.yaml` currently uses `manual_ranges: {begin, end}` for the intake *body sampling
   range* in `scripts/check_books.py`, while its own comment reserves `manual_ranges` for
   per-chapter overrides. Renamed below.
@@ -81,15 +84,22 @@ bma:
   toc:
     source: outline                       # outline | manual
     chapter_level: 2                      # outline level holding chapters
-    chapter_pattern: '^(\d+):'            # regex; group 1 = chapter number
-    page_offset: 31                       # printed = pdf_1based - page_offset; fallback only; null = unknown
+    chapter_pattern: '^(\d+):'            # regex on the (normalized) title; group 1 = chapter number
+    normalize: []                         # optional in-memory outline fixes (src/toc.py), e.g.
+                                          # [number_from_sections] for STATS-style unnumbered titles
+    page_offset: 31                       # printed = pdf_1based - page_offset; fallback only; null = unknown;
+                                          # 0 for reflowed e-books without printed pagination (ops, acct)
   chapter_ranges: {}                      # ch05: [first_idx, last_idx] (0-based) overrides
   routing: {inline_formula: true}
 ```
 
-`scripts/check_books.py` and `tests/test_config.py` follow the rename. `chapter_level`,
-`chapter_pattern` and `page_offset` are filled for bma and bkm (both measured); other
-books keep today's values and are out of scope.
+`scripts/check_books.py` and `tests/test_config.py` follow the rename. All seven books are
+configured (2026-09-06, evidence from `scripts/probe_toc.py <book>`, verified with
+`--check`): chapter numbers come from the title for six books and, for stats, from the first
+numbered section via the `number_from_sections` normalizer. Which outline entries are
+chapters is decided in one place, `src/toc.chapter_entries`, shared by stage 1 and the
+reading-list resolver. New outline layouts are handled by adding a normalizer, never by
+extending the parser.
 
 ### `config/readings/<course>.yaml` (optional)
 

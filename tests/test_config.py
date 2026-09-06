@@ -19,7 +19,15 @@ def test_every_book_has_the_stage1_keys():
     for bid, b in CFG.items():
         assert "manual_ranges" not in b, f"{bid}: manual_ranges was renamed body_range"
         assert set(b["body_range"]) == {"begin", "end"}
-        assert set(b["toc"]) == {"source", "chapter_level", "chapter_pattern", "page_offset"}
+        assert {"source", "chapter_level", "chapter_pattern", "page_offset"} <= set(b["toc"])
+        assert set(b["toc"]) <= {
+            "source",
+            "chapter_level",
+            "chapter_pattern",
+            "page_offset",
+            "normalize",
+        }
+        assert b["toc"]["chapter_pattern"] is not None, f"{bid}: every book is configured now"
         assert isinstance(b.get("chapter_ranges", {}), dict)
         pattern = b["toc"]["chapter_pattern"]
         if pattern is not None:
