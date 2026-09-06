@@ -308,10 +308,15 @@ content_list_v2 page count ≠ chapter.pdf, page-size mismatch).
     `hybrid_auto/images/` — mineru crops display equations too, so stage 4 renders nothing for
     them (rendered from `chapter.pdf` only if the path is empty);
   - every `RUNNING_MATTER` block whose text is not running matter: `{id, type: "text", crop:
-    "crops/<id>.png", reason: "running_matter_suspect"}`. Running matter = a folio (digits or
-    roman numerals), a `Chapter N`/`Part N` head, a head repeated verbatim on ≥2 pages, or the
-    chapter title; empty text is not a suspect. Everything else is a heading or sentence the
-    layout model mislabeled, which the `.md` drops and stage 5 must keep.
+    "crops/<id>.png", reason: "running_matter_suspect"}`. Running matter = a folio (digits,
+    roman numerals, or `Page N` as the reflowed ops e-book prints them), a `Chapter N`/`Part N`
+    head (letter-spaced caps such as `C H A P T E R` are joined first), a head repeated verbatim
+    on ≥2 pages, or the chapter title; empty text is not a suspect. Everything else is a heading
+    or sentence the layout model mislabeled, which the `.md` drops and stage 5 must keep.
+    Audited on ch05 of all seven books (`metrics/block-types-2026-09-06.md`): 37 suspects out of
+    570 running-matter blocks — 27 real (acct 23, bma 1, ops 3), 10 harmless (stats' single-page
+    section heads, strat's margin tab numbers). Position- or outline-based suppression of the
+    harmless ones was rejected: it would also hide acct's mislabeled section headings.
 - `spot_check`: seeded sample (`sha256(book + chapter)`) of 5 % (min 3) of
   `TEXT_BEARING − RUNNING_MATTER` blocks, each rendered to `crops/<id>.png` from `chapter.pdf`
   (block bbox scaled from 0–1000 to points, 2× zoom, PyMuPDF).
