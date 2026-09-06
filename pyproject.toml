@@ -24,6 +24,7 @@ constraint-dependencies = ["fastapi<0.137"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["."]
 markers = ["integration: needs a live MinerU server (MINERU_SERVER_URL)"]
 addopts = "-m 'not integration'"
 

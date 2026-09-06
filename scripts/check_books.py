@@ -40,8 +40,8 @@ def check_book(book_id: str, book: dict) -> tuple[dict | None, list[str]]:
 
     doc = pymupdf.open(pdf)
     start, end = (0, doc.page_count)
-    if book.get("manual_ranges"):
-        start, end = book["manual_ranges"]["begin"], book["manual_ranges"]["end"]
+    if book.get("body_range"):
+        start, end = book["body_range"]["begin"], book["body_range"]["end"]
     step = max(1, (end - start) // SAMPLE_PAGES)
     sampled = list(range(start, end, step))
     text_pages = sum(1 for i in sampled if doc[i].get_text().strip())
@@ -63,9 +63,9 @@ def check_book(book_id: str, book: dict) -> tuple[dict | None, list[str]]:
             f"{book_id}: {len(sampled) - text_pages} of {len(sampled)} sampled pages "
             "have no text layer — not born-digital as assumed in HANDOVER §2"
         )
-    if not toc and not book.get("manual_ranges"):
+    if not toc and not book.get("chapter_ranges"):
         failures.append(
-            f"{book_id}: no PDF outline and no manual_ranges in books.yaml — "
+            f"{book_id}: no PDF outline and no chapter_ranges in books.yaml — "
             "stage 1 would have to guess page ranges"
         )
     return entry, failures

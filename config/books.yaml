@@ -2,34 +2,46 @@
 # `pdf` paths are relative to the repo root. Nothing under books/ is committed.
 #
 # Per-book fields:
-#   title, edition   human-readable; fill in at intake
-#   course           mitx | fmba
-#   profile          expected difficulty (from HANDOVER §2), informs benchmark expectations
-#   pdf              landing-zone path, books/<id>/<id>.pdf
-#   toc.source       outline | manual  — stage 1 uses the PDF outline unless set to manual
-#   toc.page_offset  printed page number = pdf index + offset; set after running scripts/check_books.py
-#   manual_ranges    chapter-slug: [first_pdf_index, last_pdf_index]; only when the outline is unusable
-#   routing          per-book MinerU flags consumed by stage 2
+#   title, edition      human-readable; fill in at intake
+#   course              mitx | fmba  (selects config/readings/<course>.yaml, optional)
+#   profile             expected difficulty (from HANDOVER §2), informs benchmark expectations
+#   pdf                 landing-zone path, books/<id>/<id>.pdf
+#   body_range          {begin, end} 0-based pdf indices sampled by scripts/check_books.py
+#   toc.source          outline | manual — stage 1 uses the PDF outline unless set to manual
+#   toc.chapter_level   outline level that holds chapters (null = not yet measured)
+#   toc.chapter_pattern regex on the outline title; group 1 = chapter number
+#   toc.patches         optional rules scripts/patch_toc.py writes into the PDF outline ONCE
+#                       (number_from_children | rebuild_numbered_sections | insert | rename); the
+#                       patched PDF is the source of truth, <id>.orig.pdf keeps the original
+#   toc.page_offset     printed = pdf_1based - page_offset; fallback when page labels are
+#                       missing; null = unknown (stage 1 then fails if labels are absent)
+#   chapter_ranges      chNN: [first_idx, last_idx] (0-based, inclusive) — overrides the
+#                       outline for one chapter; the only way in for books with null pattern
+#   routing             per-book MinerU flags consumed by stage 2:
+#                       inline_formula -> -f, table -> -t, image_analysis -> --image-analysis,
+#                       lang -> -l
 
 books:
   bkm:
-    title: "Investments"                   
+    title: "Investments"
     edition: "13e (Bodie, et al.)"
     course: mitx
     profile: formulas
     pdf: books/bkm/bkm.pdf
-    toc: {source: outline, page_offset: 0}
-    manual_ranges: {begin: 4, end: 1072}
+    body_range: {begin: 4, end: 1072}
+    toc: {source: outline, chapter_level: 2, chapter_pattern: '^Chapter (\d+):', page_offset: 29}
+    chapter_ranges: {}
     routing: {inline_formula: true}
 
   bma:
-    title: "Principles of Corporate Finance"                      
+    title: "Principles of Corporate Finance"
     edition: "14e (Brealey et al.)"
     course: mitx
     profile: formulas-heavy
     pdf: books/bma/bma.pdf
-    toc: {source: outline, page_offset: 0}
-    manual_ranges: {begin: 4, end: 1052}
+    body_range: {begin: 4, end: 1052}
+    toc: {source: outline, chapter_level: 2, chapter_pattern: '^(\d+):', page_offset: 31}
+    chapter_ranges: {}
     routing: {inline_formula: true}
 
   ops:
@@ -38,8 +50,11 @@ books:
     course: fmba
     profile: diagrams+math
     pdf: books/ops/ops.pdf
-    toc: {source: outline, page_offset: 0}
-    manual_ranges: {begin: 7, end: 1284}
+    body_range: {begin: 7, end: 1284}
+    # Reflowed e-book: no printed page numbers per PDF page (the original book's breaks appear
+    # inline as "Page N" markers). page_offset 0 = report PDF 1-based pages as printed pages.
+    toc: {source: outline, chapter_level: 1, chapter_pattern: '^Chapter (\d+):', page_offset: 0}
+    chapter_ranges: {}
     routing: {inline_formula: true}
 
   strat:
@@ -48,8 +63,9 @@ books:
     course: fmba
     profile: prose+exhibits
     pdf: books/strat/strat.pdf
-    toc: {source: outline, page_offset: 0}
-    manual_ranges: {begin: 4, end: 509}
+    body_range: {begin: 4, end: 509}
+    toc: {source: outline, chapter_level: 2, chapter_pattern: '^CHAPTER (\d+)\b', page_offset: 43}
+    chapter_ranges: {}
     routing: {inline_formula: false}   # prose book; inline-formula detection is pure false-positive cost
 
   stats:
@@ -58,8 +74,14 @@ books:
     course: fmba
     profile: formulas+tables
     pdf: books/stats/stats.pdf
-    toc: {source: outline, page_offset: 0}
-    manual_ranges: {begin: 2, end: 1211}
+    body_range: {begin: 2, end: 1211}
+    toc:
+      source: outline
+      chapter_level: 1
+      chapter_pattern: '^(\d+):'
+      page_offset: 31
+      patches: [{rule: number_from_children, level: 1}]   # chapter titles carry no number; sections do
+    chapter_ranges: {}
     routing: {inline_formula: true}
 
   corpfin:
@@ -68,8 +90,18 @@ books:
     course: fmba
     profile: formulas+tables-hardest
     pdf: books/corpfin/corpfin.pdf
-    toc: {source: outline, page_offset: 0}
-    manual_ranges: {begin: 4, end: 1055}
+    body_range: {begin: 4, end: 1055}
+    toc:
+      source: outline
+      chapter_level: 1
+      chapter_pattern: '^Chapter (\d+)\b'
+      page_offset: 33   # measured via scripts/probe_toc.py
+      # Section numbers are detached from their titles ("Taxes" | "2.3" | "Net Working Capital 2.4"),
+      # first sections hang under the previous chapter, promoted subheadings fill the gap; 1.1 is absent.
+      patches:
+        - {rule: rebuild_numbered_sections, level: 2}
+        - {rule: insert, level: 2, title: "1.1 What Is Corporate Finance?", page: 34, after: {level: 1, match: '^Chapter 1\b'}}
+    chapter_ranges: {}
     routing: {inline_formula: true}
 
   acct:
@@ -78,6 +110,8 @@ books:
     course: fmba
     profile: tables-everywhere
     pdf: books/acct/acct.pdf
-    toc: {source: outline, page_offset: 0}
-    manual_ranges: {begin: 4, end: 1179}
+    body_range: {begin: 4, end: 1179}
+    # Reflowed e-book with no printed page numbers at all. page_offset 0 = PDF 1-based pages.
+    toc: {source: outline, chapter_level: 2, chapter_pattern: '^CHAPTER (\d+):', page_offset: 0}
+    chapter_ranges: {}
     routing: {inline_formula: true}

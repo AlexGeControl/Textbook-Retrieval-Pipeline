@@ -9,6 +9,12 @@ planning any stage. Design principles (§1), component contracts (§6) and
 build order/gates (§7) are fixed. Function names, module boundaries and
 normalization rules are yours. Open decisions are listed in §9.
 
+Stages 1–4 (splitter, extract wrapper, guardrail, qa_report) are designed in
+`docs/plans/2026-09-06-stages-1-4-design.md`, which supersedes HANDOVER §5–§7
+for those stages and records the resolved §9 decisions (content_list anchor,
+chapter-unit extraction with sections in meta.json, `table|formula|chart`
+flags, GPU 1 + local model pins, BMA ch. 5–6 benchmark, optional reading lists).
+
 ## Stack
 
 - Python managed by `uv`. Always `uv run …` / `uv add …` / `uv sync …`; never
@@ -35,15 +41,18 @@ normalization rules are yours. Open decisions are listed in §9.
 
 ## Commands
 
-`make sync-server`, `make server-models`, `make client-models` and `make serve`
-exist (Makefile, verified 2026-09-06; that is the fresh-server-box order — a
-client needs only `uv sync && make client-models`); the rest are created in the
-first plan. Keep this list in sync.
+Makefile targets (verified 2026-09-06): `sync-server`, `server-models`, `client-models`,
+`serve` (server box; that is the fresh-server-box order — a client needs only
+`uv sync && make client-models`), and the stage targets `split`, `extract`,
+`guardrail`, `qa_report`, `chapter`. Keep this list in sync.
 
-- `uv run pytest` — unit tier, no network; must pass before every commit
-- `uv run pytest -m integration` — requires `MINERU_SERVER_URL` reachable
+- `uv run pytest` — unit tier, no network; reads `tests/fixtures/cache/`; must
+  pass before every commit
+- `uv run pytest -m integration` — regenerates the fixture cache; needs
+  `MINERU_SERVER_URL`
 - `uv run ruff check . && uv run ruff format --check .`
-- `make chapter BOOK=<id> CH=<slug>` — stages 2–4 end to end for one chapter
+- `make chapter BOOK=<id> CH=<n>` — stages 1–4 into `work/<id>/chNN/` (`FORCE=1`
+  re-extracts); `make split|extract|guardrail|qa_report BOOK=… CH=…` run one stage
 - `make sync-server` — install/refresh the `server` extra via the TUNA
   mirror and restore the pypi.org `uv.lock`. Never commit a mirror lock.
 - `make server-models` — `hf download` of the VLM `VLM_REPO@VLM_REVISION`
@@ -61,23 +70,35 @@ first plan. Keep this list in sync.
 ## Layout
 
 ```
-Makefile                   sync-server, server-models, client-models, serve; chapter: first plan
-books/<id>/<id>.pdf        PDF landing zone; gitignored, never leaves this machine
+Makefile                   sync-server, server-models, client-models, serve, split, extract,
+                           guardrail, qa_report, chapter
+books/<id>/<id>.pdf        PDF landing zone; gitignored, never leaves this machine. Outline may be
+                           patched in place by scripts/patch_toc.py; <id>.orig.pdf keeps the original
 books/manifest.json        hashes/page counts from scripts/check_books.py (committed)
 config/books.yaml          per-book pdf path, TOC hints, routing flags
-config/readings/*.yaml     per-course chapter lists (mitx, fmba)
+config/readings/*.yaml     optional per-course chapter lists (mitx.yaml today)
+src/config.py              books.yaml loader, chapter slug/number, work_dir
+src/readings.py            reading-list resolution against the outline
+src/toc.py                 outline helpers: chapter_entries + toc.patches rules (shared)
 src/split.py               stage 1  chapter splitter
 src/extract.py             stage 2  mineru wrapper
-src/guardrail.py           stage 3  PyMuPDF text-layer diff
+src/blocks.py              block model over <stem>_content_list_v2.json (stages 3-5)
+src/normalize.py           guardrail normalization rules (MD_RULES, PDF_RULES)
+src/guardrail.py           stage 3  PyMuPDF text-layer diff -> guardrail.json
+src/qa_schema.py           qa_report.json validator (HANDOVER §6)
 src/qa_report.py           stage 4  qa_report.json builder
 src/vault_commit.py        stage 5b move certified output into vault
 scripts/check_books.py     landing-zone intake check; run after adding any PDF
+scripts/probe_toc.py       outline evidence for books.yaml toc.*; --check resolves all chapters
+scripts/patch_toc.py       write toc.patches rules into a book's PDF outline (dry run by default)
 .claude/skills/chapter-review/SKILL.md   stage 5 reviewer instructions
-work/                      per-chapter working dirs (gitignored)
-metrics/                   benchmark + per-chapter metrics
+work/<book>/chNN/          chapter.pdf meta.json chapter/hybrid_auto/ guardrail.json
+                           qa_report.json crops/  (gitignored)
+metrics/                   block-type evidence, gate3-bma.md, hunk-stats-2026-09-06.md
+tests/helpers.py           fixture-cache lookup shared by unit tests
 tests/fixtures/            fixture PDFs + cached MinerU outputs (gitignored)
 docs/design/               handover and design docs, loaded on demand
-docs/plans/                Superpowers design/plan output
+docs/plans/                design + plan for stages 1–4; addenda record the gates
 ```
 
 ## Hard rules
@@ -97,6 +118,9 @@ docs/plans/                Superpowers design/plan output
   reshape them.
 - `qa_report.json` follows the schema in HANDOVER §6 exactly. Validate it in
   stage 4.
+- Stages 3–5 anchor on `<stem>_content_list_v2.json` (one list per page,
+  span-level text). v1 and the `.md` are reference renderings; never diff or
+  slice from them.
 
 ## Testing conventions
 
@@ -118,6 +142,12 @@ docs/plans/                Superpowers design/plan output
   Integration tier regenerates the cache against the live server.
 - Guardrail normalization is the highest-iteration area. Each normalization
   rule gets its own failing test before implementation.
+- Fixture cache: `tests/fixtures/cache/<book>/<set>/hybrid_auto/`, seeded once
+  from a live run (`uv run pytest -m integration`). Unit tests skip with a
+  message if it is missing.
+- Guardrail rules live in `src/normalize.py` (`MD_RULES`, `PDF_RULES`); append,
+  never reorder silently; every rule has a captured-string test in
+  `tests/test_normalize.py`.
 
 ## Superpowers — project deviations
 
@@ -158,3 +188,7 @@ docs/plans/                Superpowers design/plan output
   A6000. Use `CUDA_DEVICE_ORDER=PCI_BUS_ID` so CUDA indices match.
 - Versions are pinned (see Stack); re-verify against MinerU/vLLM docs before
   bumping — both move fast.
+- The extraction client on this box runs on GPU 1 with pinned local models:
+  `extract.py` sets `CUDA_DEVICE_ORDER=PCI_BUS_ID MINERU_DEVICE_MODE=cuda:1
+  MINERU_MODEL_SOURCE=local` and reads `models-dir` from `~/mineru.json`. Never
+  export these by hand; run through `make extract`/`make chapter`.

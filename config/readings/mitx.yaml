@@ -1,0 +1,3 @@
+# MITx Foundations of Modern Finance — chapters in scope per book id (config/books.yaml).
+# A book absent here = every chapter of that book. Only the gate 2-3 benchmark so far.
+bma: [5, 6]

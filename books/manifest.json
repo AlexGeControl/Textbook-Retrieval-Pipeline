@@ -61,7 +61,7 @@
   },
   "stats": {
     "pdf": "books/stats/stats.pdf",
-    "sha256": "b3bc92c9f04c19b7d9a094d4d6064c079e0bcc1766cc915b3eebe85b7ddc9d79",
+    "sha256": "3050e334077d834d7514e9855c04d9b8a6093c38b91d285219f7b2839a7d073e",
     "pages": 1217,
     "text_layer_sample": "21/21",
     "outline_entries": 603,
@@ -71,15 +71,15 @@
       "Contents",
       "About the Authors",
       "Preface",
-      "Data and Statistics"
+      "1: Data and Statistics"
     ]
   },
   "corpfin": {
     "pdf": "books/corpfin/corpfin.pdf",
-    "sha256": "d276dd816bfb64bdaa10c779ec7998d9687f9a4434770afa2bfe044477ab7b63",
+    "sha256": "f934748789190cae96e5caf2d1283323325005b0087e05ca2338ac95da0006cf",
     "pages": 1055,
     "text_layer_sample": "21/21",
-    "outline_entries": 828,
+    "outline_entries": 733,
     "outline_top_level": 44,
     "first_outline_titles": [
       "About the Authors",
