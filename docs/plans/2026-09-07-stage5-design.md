@@ -620,7 +620,8 @@ amends the section it names; the plan implements the amended form.
    and title+number; `<sup>*</sup>` and a U+0007 control character inside outline titles (bkm)
    → the fold strips markup and category C; a case-only duplicate on the page (strat's key-term
    margin title) → exact-case match preferred, then `title` type, then the shorter run, else
-   ambiguous and an error; a section whose printed heading is absent but whose first
+   ambiguous and an error; a section that repeats the chapter title on the same page (bkm 9.1,
+   gate 5) → when a number is given, the run that prints the number outranks the bare title; a section whose printed heading is absent but whose first
    `toc_subtree` child is printed on the same page (acct End-of-Chapter Homework Material →
    ETHICS in the Real World) → rule `first_child`, the child heading stays in the body; the first
    section on the chapter's first page with no printed heading (ops Introduction) → rule

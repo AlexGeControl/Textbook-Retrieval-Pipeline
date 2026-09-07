@@ -83,6 +83,7 @@ def find_heading(page_blocks: list[Block], title: str, number: str | None) -> li
             joined = " ".join(clean_title(x.text()) for x in run)
             if fold(joined) in forms:
                 score = (
+                    0 if number is None or fold(number) in fold(joined) else 1,
                     0 if all(x.type == "title" for x in run) else 1,
                     0 if joined in exact else 1,
                     len(run),

@@ -76,6 +76,17 @@ def test_find_heading_prefers_exact_case_then_title_type_then_short_runs():
     assert find_heading([_b("p000-b000", "paragraph", "nothing")], "Absent", None) is None
 
 
+def test_find_heading_prefers_the_numbered_form_when_a_number_is_given():
+    # bkm ch09: section 9.1 repeats the chapter title on the chapter's first page.
+    page = [
+        _b("p000-b000", "title", "The Capital Asset Pricing Model", 1),
+        _b("p000-b002", "paragraph", "body"),
+        _b("p000-b005", "title", "9.1 The Capital Asset Pricing Model", 2),
+    ]
+    hit = find_heading(page, "The Capital Asset Pricing Model", "9.1")
+    assert [b.id for b in hit] == ["p000-b005"]
+
+
 def test_find_heading_raises_on_true_ambiguity():
     page = [_b("p000-b000", "title", "Summary", 2), _b("p000-b003", "title", "Summary", 2)]
     with pytest.raises(SectionError, match="ambiguous"):
