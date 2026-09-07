@@ -47,10 +47,11 @@ resume point for the implementation session.
 
 ## Commands
 
-Makefile targets (verified 2026-09-06): `sync-server`, `server-models`, `client-models`,
+Makefile targets (verified 2026-09-07): `sync-server`, `server-models`, `client-models`,
 `serve` (server box; that is the fresh-server-box order — a client needs only
-`uv sync && make client-models`), and the stage targets `split`, `extract`,
-`guardrail`, `qa_report`, `chapter`. Keep this list in sync.
+`uv sync && make client-models`), the stage targets `split`, `extract`, `guardrail`, `qa_report`,
+`chapter`, and the stage-5 targets `prepass`, `review-checks`, `review`, `finalize`, `render`,
+`check`, `push`. Keep this list in sync.
 
 - `uv run pytest` — unit tier, no network; reads `tests/fixtures/cache/`; must
   pass before every commit
@@ -59,6 +60,15 @@ Makefile targets (verified 2026-09-06): `sync-server`, `server-models`, `client-
 - `uv run ruff check . && uv run ruff format --check .`
 - `make chapter BOOK=<id> CH=<n>` — stages 1–4 into `work/<id>/chNN/` (`FORCE=1`
   re-extracts); `make split|extract|guardrail|qa_report BOOK=… CH=…` run one stage
+- `make review BOOK=<id> CH=<n>` — stage 5a: pre-pass + mechanical checks into the `review`
+  key of `qa_report.json` and `work/<id>/chNN/patches.json`; then `/chapter-review <id> <n>` in
+  a Claude Code session adjudicates the residue (tier A Sonnet over crops, tier B the reviewer)
+  and ends with `make finalize BOOK=… CH=…`, which derives `status`, renders
+  `vault/<id>/chNN/` and runs the battery (`make -n` shows the `uv run python -m …` forms)
+- `make render|check|push BOOK=… CH=… [SECTION=<ordinal|slug>]` — inspect, re-check or push
+  the staging tree; `check PARSED=1` compares Obsidian's parse of the pushed notes; it and
+  `push` read `OBSIDIAN_HOST`, `OBSIDIAN_PORT`, `OBSIDIAN_API_KEY` from the environment (never
+  committed). Only a `certified` manifest pushes; default `ROOT=raw/textbooks/`
 - `make sync-server` — install/refresh the `server` extra via the TUNA
   mirror and restore the pypi.org `uv.lock`. Never commit a mirror lock.
 - `make server-models` — `hf download` of the VLM `VLM_REPO@VLM_REVISION`

@@ -67,7 +67,8 @@ for i in $$(seq 1 $(HF_ATTEMPTS)); do \
 done
 endef
 
-.PHONY: help sync-server server-models client-models serve print-kit-base need-chapter-args split extract guardrail qa_report chapter
+.PHONY: help sync-server server-models client-models serve print-kit-base need-chapter-args split extract guardrail qa_report chapter \
+        prepass review-checks review finalize render check push
 
 help:
 	@echo "make sync-server    Install/refresh the 'server' extra via the TUNA mirror; uv.lock stays on pypi.org."
@@ -79,8 +80,16 @@ help:
 	@echo "make guardrail BOOK=<id> CH=<n> Stage 3: text-layer diff -> work/<id>/chNN/guardrail.json"
 	@echo "make qa_report BOOK=<id> CH=<n> Stage 4: work/<id>/chNN/qa_report.json (+ crops/)"
 	@echo "make chapter BOOK=<id> CH=<n>   Stages 1-4 for one chapter (FORCE=1 re-extracts)"
+	@echo "make prepass BOOK=<id> CH=<n>   Stage 5a: classify guardrail hunks -> review key + work/<id>/chNN/patches.json"
+	@echo "make review-checks BOOK=<id> CH=<n>  Stage 5a: LaTeX/table/text-layer/heading/footnote checks -> review key"
+	@echo "make review BOOK=<id> CH=<n>    Stage 5a: prepass + review-checks; then /chapter-review <id> <n> in Claude Code"
+	@echo "make finalize BOOK=<id> CH=<n>  Stage 5: derive status, render vault/<id>/chNN/, run the battery"
+	@echo "make render BOOK=<id> CH=<n>    Stage 5b: uncertified render for inspection (SECTION=<ordinal|slug> for one note)"
+	@echo "make check BOOK=<id> CH=<n>     Stage 5b: battery over vault/<id>/chNN/ (PARSED=1 adds Obsidian's parse; needs OBSIDIAN_*)"
+	@echo "make push BOOK=<id> CH=<n>      Stage 5b: PUT the certified tree under ROOT (raw/textbooks/) and read it back"
 	@echo "Variables: GPU PORT GPU_MEM_UTIL VLM_REPO VLM_REVISION KIT_REPO KIT_REVISION KIT_MODELS"
 	@echo "           HF_ATTEMPTS HF_ATTEMPT_SECS HF_ENDPOINT MIRROR BOOK CH FORCE MINERU_SERVER_URL"
+	@echo "           SECTION ROOT PARSED OBSIDIAN_HOST OBSIDIAN_PORT OBSIDIAN_API_KEY"
 
 print-kit-base:
 	@echo $(KIT_MODELS_BASE)
@@ -147,3 +156,35 @@ qa_report: need-chapter-args
 	uv run python -m src.qa_report --book $(BOOK) --chapter $(CH)
 
 chapter: split extract guardrail qa_report
+
+# ---- stage 5 (design: docs/plans/2026-09-07-stage5-design.md) --------------------------------
+# make review BOOK=bma CH=5 runs the pre-pass and the mechanical checks; the chapter-review skill
+# does the rest and ends with make finalize. render/check/push accept SECTION=<ordinal|slug>.
+# check accepts PARSED=1 (compare Obsidian's parse of the pushed notes); it and push need
+# OBSIDIAN_HOST, OBSIDIAN_PORT, OBSIDIAN_API_KEY in the environment. ROOT is the vault folder.
+# GNU make exits 2 on any failing recipe, so read finalize's printed status (certified /
+# needs_attention); scripts wanting the 0/3/1 exit codes call `uv run python -m src.review finalize`.
+SECTION ?=
+ROOT ?= raw/textbooks/
+PARSED ?=
+SECTION_ARG = $(if $(SECTION),--section "$(SECTION)")
+
+prepass: need-chapter-args
+	uv run python -m src.prepass --book $(BOOK) --chapter $(CH)
+
+review-checks: need-chapter-args
+	uv run python -m src.review_checks --book $(BOOK) --chapter $(CH)
+
+review: prepass review-checks
+
+finalize: need-chapter-args
+	uv run python -m src.review finalize --book $(BOOK) --chapter $(CH)
+
+render: need-chapter-args
+	uv run python -m src.vault_commit render --book $(BOOK) --chapter $(CH) $(SECTION_ARG)
+
+check: need-chapter-args
+	uv run python -m src.vault_commit check --book $(BOOK) --chapter $(CH) $(SECTION_ARG) --root "$(ROOT)" $(if $(PARSED),--parsed)
+
+push: need-chapter-args
+	uv run python -m src.vault_commit push --book $(BOOK) --chapter $(CH) $(SECTION_ARG) --root "$(ROOT)"
