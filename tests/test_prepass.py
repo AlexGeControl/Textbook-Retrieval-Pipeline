@@ -13,7 +13,7 @@ from src.prepass import (
     strip_moved,
 )
 from src.review import Chapter
-from tests.helpers import make_work_dir, work_chapter
+from tests.helpers import make_work_dir, work_chapter_sandbox
 
 
 def test_strip_context_keeps_only_the_core():
@@ -306,8 +306,8 @@ def test_rerun_keeps_manual_hunk_verdicts(tmp_path, monkeypatch):
 
 
 @pytest.mark.workdir
-def test_bma_ch05_prepass_numbers():
-    work_chapter("bma", "ch05")
+def test_bma_ch05_prepass_numbers(tmp_path, monkeypatch):
+    work_chapter_sandbox("bma", "ch05", tmp_path, monkeypatch)
     counts = run(Chapter("bma", 5))
     assert sum(counts.values()) == 57
     assert counts["needs_eyes"] <= 20, counts
@@ -317,12 +317,12 @@ def test_bma_ch05_prepass_numbers():
 
 
 @pytest.mark.workdir
-def test_bma_ch06_duplicate_and_ops_folio():
-    work_chapter("bma", "ch06")
+def test_bma_ch06_duplicate_and_ops_folio(tmp_path, monkeypatch):
+    work_chapter_sandbox("bma", "ch06", tmp_path, monkeypatch)
     run(Chapter("bma", 6))
     ch = Chapter("bma", 6)
     assert any(p.rule == "duplicate" and p.block == "p026-b007" for p in ch.patches)
-    work_chapter("ops", "ch05")
+    work_chapter_sandbox("ops", "ch05", tmp_path, monkeypatch)
     run(Chapter("ops", 5))
     ch = Chapter("ops", 5)
     assert sum(p.rule == "folio" for p in ch.patches) >= 5

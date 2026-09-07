@@ -30,7 +30,7 @@ _CALLOUT_HEAD = re.compile(r"^> \[!\w+\](-|\+)?( .*)?$")
 # targets; document-map+json carries the heading tree. Rendering itself is the mobile pass.
 NOTE_JSON = "application/vnd.olrapi.note+json"
 DOCUMENT_MAP = "application/vnd.olrapi.document-map+json"
-_HEADING = re.compile(r"(?m)^#{1,6} ")
+_HEADING = re.compile(r"(?m)^(#{1,6}) (.+)$")
 
 
 @dataclass
@@ -197,13 +197,27 @@ def note_json(client, path: str, retries: int = 3) -> dict:
     return data
 
 
-def source_targets(text: str) -> tuple[set[str], int]:
-    """Link and embed targets (note names, asset file names) and the heading count of a note."""
+def heading_paths(body: str) -> set[str]:
+    """Heading paths as Obsidian's document map lists them: `::`-joined ancestors, unique (two
+    sibling headings with the same text are one path — bma ch05 note 03, gate 4)."""
+    paths: set[str] = set()
+    stack: list[tuple[int, str]] = []  # (level, title); the parent is the nearest smaller level
+    for m in _HEADING.finditer(body):
+        level, title = len(m.group(1)), m.group(2).strip()
+        while stack and stack[-1][0] >= level:
+            stack.pop()
+        stack.append((level, title))
+        paths.add("::".join(t for _lvl, t in stack))
+    return paths
+
+
+def source_targets(text: str) -> tuple[set[str], set[str]]:
+    """Link and embed targets (note names, asset file names) and the heading paths of a note."""
     _fm, body = _split_frontmatter(text)
     targets = {m.group(1) for m in _LINK.finditer(body)} | {
         m.group(1) for m in _EMBED.finditer(body)
     }
-    return targets, len(_HEADING.findall(body))
+    return targets, heading_paths(body)
 
 
 def check_parsed(
@@ -220,7 +234,7 @@ def check_parsed(
     for rel in sorted(n for n in manifest["files"] if n.endswith(".md")):
         text = (tree / rel).read_text()
         fm, _body = _split_frontmatter(text)
-        targets, n_headings = source_targets(text)
+        targets, paths = source_targets(text)
         try:
             data = note_json(client, dest + rel)
         except LookupError as e:
@@ -238,11 +252,13 @@ def check_parsed(
         dm = client.get(dest + rel, accept=DOCUMENT_MAP)
         if dm.status_code != 200:
             out.append(Problem(rel, f"document map GET returned {dm.status_code}"))
-        elif len(dm.json().get("headings", [])) != n_headings:
+        elif set(dm.json().get("headings", [])) != paths:
+            seen = set(dm.json().get("headings", []))
             out.append(
                 Problem(
                     rel,
-                    f"Obsidian sees {len(dm.json()['headings'])} headings, source has {n_headings}",
+                    f"headings differ: Obsidian lacks {sorted(paths - seen)}, "
+                    f"source lacks {sorted(seen - paths)}",
                 )
             )
     return out

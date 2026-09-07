@@ -6,6 +6,7 @@ The unit tier reads cached MinerU outputs under tests/fixtures/cache/<book>/<set
 """
 
 import json
+import shutil
 from pathlib import Path
 
 import pymupdf
@@ -143,3 +144,26 @@ def make_work_dir(
     }
     (wd / "qa_report.json").write_text(json.dumps(report))
     return wd
+
+
+def work_chapter_sandbox(book: str, chapter: str, root: Path, monkeypatch) -> Path:
+    """A writable copy of work/<book>/<chNN>/ under `root`, with src.config.WORK redirected there.
+
+    The stage-2 outputs and chapter.pdf are symlinked (read-only by contract); the stage 3-5
+    JSON files are copied, so a test that runs the pre-pass or the checks never rewrites the real
+    qa_report.json / patches.json (gate 4, 2026-09-07: a test run wiped a certified render's sha).
+    """
+    import src.config
+
+    real = work_chapter(book, chapter)
+    box = root / book / chapter
+    box.mkdir(parents=True)
+    for name in ("chapter.pdf", "chapter", "crops"):
+        if (real / name).exists():
+            (box / name).symlink_to((real / name).resolve())
+    for name in ("meta.json", "guardrail.json", "qa_report.json", "patches.json"):
+        if (real / name).exists():
+            shutil.copyfile(real / name, box / name)
+    monkeypatch.setattr(src.config, "WORK", root)
+    monkeypatch.setenv("TRP_WORK", str(root))
+    return box

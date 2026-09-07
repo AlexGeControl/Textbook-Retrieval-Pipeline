@@ -50,7 +50,18 @@ class FakeClient:
                 "tags": [],
             }
         elif data is not None and accept == DOCUMENT_MAP:
-            r.json = lambda: {"headings": re.findall(r"(?m)^#{1,6} (.+)$", r.text), "blocks": []}
+            # Obsidian lists unique `::`-joined heading paths (two sibling headings with the same
+            # text collapse to one entry — bma ch05 note 03, gate 4)
+            paths, stack = [], []
+            for m in re.finditer(r"(?m)^(#{1,6}) (.+)$", r.text):
+                level, title = len(m.group(1)), m.group(2).strip()
+                while stack and stack[-1][0] >= level:
+                    stack.pop()
+                stack.append((level, title))
+                path = "::".join(x for _lvl, x in stack)
+                if path not in paths:
+                    paths.append(path)
+            r.json = lambda: {"headings": paths, "blocks": []}
         return r
 
 
@@ -130,3 +141,19 @@ def test_check_parsed_needs_a_pushed_chapter(certified):
     ch = Chapter("bma", 5)
     problems = check_parsed(staging_dir(ch), ch, FakeClient(), "raw/textbooks/")
     assert len(problems) == 1 and "not pushed" in problems[0].msg
+
+
+def test_check_parsed_accepts_duplicate_sibling_headings(certified):
+    client = FakeClient()
+    ch = Chapter("bma", 5)
+    push_chapter(ch, "raw/textbooks/", client=client)
+    hub = "raw/textbooks/bma/ch05/bma-ch05-00-net-present-value-and-other-investment-criteria.md"
+    tree = staging_dir(ch)
+    text = (
+        client.store[hub].decode()
+        + "\n### BEYOND THE PAGE\n\ntext\n\n### BEYOND THE PAGE\n\nmore\n"
+    )
+    client.store[hub] = text.encode()
+    (tree / hub.rsplit("/", 1)[-1]).write_text(text)  # same text in the staging tree
+    msgs = [p.msg for p in check_parsed(tree, ch, client, "raw/textbooks/")]
+    assert not any("heading" in m for m in msgs), msgs
