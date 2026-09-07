@@ -606,3 +606,70 @@ to mineru; any change to stages 1–4 other than the additive `validate_review`;
 figures; links from textbook notes into lecture or course notes; `chapter_ranges` for
 stats/acct; rendering refinements beyond "faithful and readable" until a human has read a
 section.
+
+## Amendments (2026-09-07, during planning)
+
+Measured on the eight work dirs while writing `docs/plans/2026-09-07-stage5-plan.md`. Each item
+amends the section it names; the plan implements the amended form.
+
+1. **§9 anchors.** The single-block fold match left sections unresolved in seven of eight
+   chapters (only stats was clean). Causes and the rules that fix them: headings split across
+   consecutive `title` blocks (acct `APPENDIX 5A:` + title, bma `KEY` + `TAKEAWAYS`,
+   `MINI-CASE` + title) → a run of up to four consecutive text-bearing blocks; the number
+   printed after the title (corpfin `Why Use Net Present Value?5.1`) → forms title, number+title
+   and title+number; `<sup>*</sup>` and a U+0007 control character inside outline titles (bkm)
+   → the fold strips markup and category C; a case-only duplicate on the page (strat's key-term
+   margin title) → exact-case match preferred, then `title` type, then the shorter run, else
+   ambiguous and an error; a section whose printed heading is absent but whose first
+   `toc_subtree` child is printed on the same page (acct End-of-Chapter Homework Material →
+   ETHICS in the Real World) → rule `first_child`, the child heading stays in the body; the first
+   section on the chapter's first page with no printed heading (ops Introduction) → rule
+   `chapter_start`, the first body block after the chapter title. Left to the outline, as the
+   fail-loud rule intends: bkm "End of Chapter Material" (a grouping label; the page opens with
+   SUMMARY) and strat "Experiential Exercise…" (printed in the plural) get `toc.patches` renames
+   at gate 5. Subheading candidates include running-matter suspects (acct's KEY TERMS is typed
+   `page_footer`). A missing subheading no longer blocks certification by itself: it needs a
+   reviewer verdict, `found_as` or `not_a_heading` (strat's five Strategy Spotlight entries are
+   boxed features typed `page_header` and split into three blocks).
+2. **§7 table text-layer check.** Exact bag equality matched 0 of 38 bma tables: HTML cells carry
+   inline LaTeX (`$C_0$` against the text layer's `C0`) and ellipses differ (`...` vs `. . .`).
+   The check flattens `$…$` with `flatten_latex`, joins cells with spaces and compares
+   fold-per-token bags (9 of 38 exact before flattening; the plan records the new rate). The
+   differing tokens go to `checks.textlayer_diff` and to tier A as spotlights; a table is
+   `verified` when tier A reports a match and either the bag is equal or every spotlight token
+   was resolved as an artefact.
+3. **§7 formula text-layer check.** bma 19 of 20 match; stats 1 of 78, because MathematicalPi
+   encodes ≥ as `$`, Σ as `o` and = as `5`. A per-book switch `review: {textlayer_math: false}`
+   in `config/books.yaml` (stats) sets the check to null so tier A alone decides, instead of
+   manufacturing 77 disagreements for tier B.
+4. **§7 footnotes.** A definition without a reference blocks certification (the lost trailing
+   superscript). A reference without a definition is informational (`footnotes.dangling`):
+   strat's 74 endnote marks and acct's 16 have no footnote blocks, and exponents such as
+   `1.1<sup>2</sup>` are excluded by the preceding-character rule (a digit or `)`). Measured:
+   bma ch05 11 definitions / 12 references, bma ch06 13 / 13, bkm 14 definitions with 3
+   unreferenced, corpfin 6 with 2.
+5. **§6 classification.** Hunk texts carry the guardrail's context (the first three tokens agree
+   in 531 of 622 hunks, the last three in 496), so the core is the pair minus its common prefix
+   and suffix. Order: junk, duplicate (block-level period detection: bma ch06 `p026-b007` is
+   five hunks on one block), folio, move (token-greedy strip against the chapter-wide insertion
+   and deletion pools; a remainder re-enters classification as `move+<rule>`), then inline_math
+   for blocks with inline math (tested before same_letters so their LaTeX is kept), same_letters,
+   edge_glyph. A one-sided core (bma's drop cap `A` is a separate 37 pt word) is widened by one
+   shared context token before the edge test. PDF-wins windows widen with context until the raw
+   run is unique on the page and the `old` substring is unique in the block.
+6. **§5 modules.** `src/fold.py` (`fold`, `letters`, `clean_title`) is added. `src/config.py`'s
+   `WORK` and `src/vault_commit.py`'s `VAULT` honour `TRP_WORK` / `TRP_VAULT` so CLI subprocess
+   tests never touch the real trees.
+7. **§9, §12 empty table bodies.** acct ch05 has 15 `table` blocks with empty HTML (the VLM
+   returned nothing; the crops exist). Checks record rows 0, cols 0, rectangular false; the
+   renderer embeds the crop with a warning callout for inspection renders; the block stays
+   unresolved until the reviewer patches it or gate 5 records the per-book fix (re-extraction
+   with different table settings or a `set_html` budget, HANDOVER §8).
+8. **§11 `review` key.** `checks` gains `textlayer_diff`; `headings.missing[*]` is `{title,
+   page, kind, verdict, block, note}`; `footnotes` gains `dangling` and `unmatched[*]` is `{id,
+   verdict, note}`; `unresolved[*]` is `{kind, ref, reason}`. `review crop --id` prints a crop
+   path and counts the open; `finalize` exits 0 when certified, 3 when needs_attention, 1 on
+   error.
+9. **§3 facts.** PyMuPDF `rawdict` span flag bit 0 marks the footnote superscripts (bma page 4:
+   `1`); omitting TEXT_PRESERVE_LIGATURES expands ops's two `ﬀ`; stats carries 267 soft-hyphen
+   characters in `rawdict`; 46 of 61 footnote blocks open with `<sup>n</sup>`.
