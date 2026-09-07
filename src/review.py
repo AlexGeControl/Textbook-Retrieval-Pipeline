@@ -245,6 +245,65 @@ def cmd_patch(ch: Chapter, args) -> None:
     print(patch.id)
 
 
+def unresolved_items(report: dict) -> list[dict]:
+    r = report["review"]
+    out: list[dict] = []
+    for i, h in enumerate(r["hunks"]):
+        if h["verdict"] == "unresolved":
+            out.append({"kind": "hunk", "ref": i, "reason": h["note"] or "no verdict"})
+    for b in r["blocks"]:
+        if b["verdict"] == "unresolved":
+            out.append({"kind": "block", "ref": b["id"], "reason": b["note"] or "no verdict"})
+    for s in r["spot_check"]:
+        if s["verdict"] == "unresolved":
+            out.append({"kind": "spot", "ref": s["id"], "reason": s["note"] or "no verdict"})
+    for m in r["headings"]["missing"]:
+        if m["verdict"] is None:
+            out.append({"kind": "heading", "ref": m["title"], "reason": "subheading not found"})
+    for u in r["footnotes"]["unmatched"]:
+        if u["verdict"] is None:
+            out.append(
+                {"kind": "footnote", "ref": u["id"], "reason": "definition without a reference"}
+            )
+    return out
+
+
+def finalize(ch: Chapter) -> str:
+    """Derive status, render, check; certified only when all three pass (design §8, §12)."""
+    from src.vault_checks import check_tree
+    from src.vault_commit import render_chapter
+
+    r = ch.review
+    if not r["prepass"]["timestamp"]:
+        raise ReviewError("prepass has not run — make prepass first")
+    if not r["effort"]["started"]:
+        raise ReviewError("review start was not recorded — run `review start` first")
+    r["unresolved"] = unresolved_items(ch.report)
+    status = "certified" if not r["unresolved"] else "needs_attention"
+    ch.report["status"] = status
+    r["effort"]["finished"] = now()
+    r["effort"]["patches"] = sum(p.source == "review" for p in ch.patches)
+    ch.save()
+    tree = render_chapter(ch, certified=(status == "certified"))
+    problems = check_tree(tree, ch)
+    if problems:
+        r["unresolved"] += [{"kind": "check", "ref": p.where, "reason": p.msg} for p in problems]
+        status = "needs_attention"
+        ch.report["status"] = status
+        ch.save()
+        render_chapter(ch, certified=False)
+    return status
+
+
+def cmd_finalize(ch: Chapter, args) -> int:
+    status = finalize(ch)
+    r = ch.review
+    print(f"finalize: {ch.book} ch{ch.number:02d} -> {status}")
+    for u in r["unresolved"]:
+        print(f"  unresolved {u['kind']} {u['ref']}: {u['reason']}")
+    return 0 if status == "certified" else 3
+
+
 def build_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(prog="src.review", description="Stage 5 review record writer")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -300,18 +359,34 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--rule")
     p.add_argument("--hunk", type=int)
     p.set_defaults(func=cmd_patch)
+    p = sub.add_parser("finalize", help="derive status, render, check")
+    common(p)
+    p.set_defaults(func=cmd_finalize)
     return ap
 
 
 def main(argv: list[str] | None = None) -> int:
+    from src.render import RenderError  # local: vault_commit imports this module
+    from src.sections import SectionError
+    from src.vault_commit import CommitError
+
     args = build_parser().parse_args(argv)
     try:
         ch = Chapter(args.book, args.chapter)
-        args.func(ch, args)
-    except (ReviewError, SchemaError, patchmod.PatchError, ConfigError, json.JSONDecodeError) as e:
+        result = args.func(ch, args)
+    except (
+        ReviewError,
+        SchemaError,
+        SectionError,
+        RenderError,
+        CommitError,
+        ConfigError,
+        patchmod.PatchError,
+        json.JSONDecodeError,
+    ) as e:
         print(f"review: {e}", file=sys.stderr)
         return 1
-    return 0
+    return result or 0
 
 
 if __name__ == "__main__":

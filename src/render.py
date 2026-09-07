@@ -25,6 +25,7 @@ _NUMBERED = re.compile(r"^\s*\d+[.)]\s")
 _SUP = re.compile(r"<sup>\s*(\d+)\s*</sup>")
 _ORDERED_START = re.compile(r"^(\d+)([.)])(\s)")
 _MARKER_START = re.compile(r"^(?:[#>]|[-*+]\s)")
+_CELL_MATH = re.compile(r"\$(?=\S)([^$\n]+?)(?<=\S)\$")
 
 
 class RenderError(Exception):
@@ -89,13 +90,53 @@ def footnote_refs(text: str, ctx: Context) -> str:
     return _SUP.sub(sub, text)
 
 
+def escape_dollars(text: str) -> str:
+    """A `$` in a text span is currency (math lives in equation_inline spans): `\\$` for Obsidian."""
+    return text.replace("$", "\\$")
+
+
+def md_text(text: str, ctx: Context) -> str:
+    """A text span or caption as Markdown: currency escaped, footnote markers converted."""
+    return footnote_refs(escape_dollars(text), ctx)
+
+
+def _cell_is_math(content: str) -> bool:
+    """`$…$` in a VLM table cell reads as LaTeX when it opens with a letter, `\\`, `(` or `{`, or with
+    a digit followed somewhere by `\\`, `^`, `_` or `=` (`$1,949^a$`); `$4,000-$6,000` does not."""
+    c0 = content[0]
+    return c0.isalpha() or c0 in "\\({" or (c0.isdigit() and any(ch in content for ch in "\\^_="))
+
+
+def escape_cell_dollars(text: str) -> str:
+    """Pipe-table cells are Markdown: keep LaTeX `$…$` pairs, escape every other `$`."""
+    out: list[str] = []
+    pos = 0
+    while True:
+        m = _CELL_MATH.search(text, pos)
+        if m is None:
+            out.append(escape_dollars(text[pos:]))
+            return "".join(out)
+        out.append(escape_dollars(text[pos : m.start()]))
+        if _cell_is_math(m.group(1)):
+            out.append(m.group(0))
+            pos = m.end()
+        else:  # a currency `$` paired by accident: escape it and rescan from the next `$`
+            out.append("\\$")
+            pos = m.start() + 1
+
+
 def inline(spans: tuple[Span, ...], ctx: Context) -> str:
     out: list[str] = []
+    after_math = False
     for s in spans:
         if s.type == "equation_inline":
             out.append(f"${s.content.strip()}$")
+            after_math = True
         elif s.type == "text":
-            out.append(footnote_refs(s.content, ctx))
+            if after_math and s.content[:1].isalnum():
+                out.append(" ")  # mineru drops the space after an inline formula
+            out.append(md_text(s.content, ctx))
+            after_math = False
     return "".join(out)
 
 
@@ -151,7 +192,7 @@ def _cells(tr) -> list[str]:
     for td in tr.xpath("./td|./th"):
         for br in td.xpath(".//br"):
             br.tail = " " + (br.tail or "")
-        out.append(" ".join(td.text_content().split()).replace("|", "\\|"))
+        out.append(escape_cell_dollars(" ".join(td.text_content().split()).replace("|", "\\|")))
     return out
 
 
@@ -188,7 +229,7 @@ def embed(block: Block, ctx: Context) -> str:
 
 def table(block: Block, ctx: Context) -> str:
     cap, foot = _caption_parts(block)
-    parts = [strip_ornament(footnote_refs(cap, ctx))] if cap else []
+    parts = [strip_ornament(md_text(cap, ctx))] if cap else []
     if not block.html.strip():
         ctx.log.append(f"{block.id}: empty table body, crop embedded")
         parts += [embed(block, ctx), "> [!warning] Table body missing from the extraction"]
@@ -199,7 +240,7 @@ def table(block: Block, ctx: Context) -> str:
             ctx.log.append(f"{block.id}: simple_table with colspan/rowspan rendered as HTML")
         parts.append(block.html.strip())
     if foot:
-        parts.append(footnote_refs(foot, ctx))
+        parts.append(md_text(foot, ctx))
     return "\n\n".join(p for p in parts if p)
 
 
@@ -207,9 +248,9 @@ def figure(block: Block, ctx: Context) -> str:
     cap, foot = _caption_parts(block)
     parts = [embed(block, ctx)]
     if cap:
-        parts.append(strip_ornament(footnote_refs(cap, ctx)))
+        parts.append(strip_ornament(md_text(cap, ctx)))
     if foot:
-        parts.append(footnote_refs(foot, ctx))
+        parts.append(md_text(foot, ctx))
     content = block.content.strip()
     if content and ctx.verdicts.get(block.id) in ("verified", "patched"):
         label = (
@@ -234,10 +275,10 @@ def image(block: Block, ctx: Context) -> str:
 
 
 def aside_callout(run: list[Block], ctx: Context) -> str:
-    texts = [t for t in (inline(b.spans, ctx).strip() for b in run) if t]
-    if not texts:
+    lines = [t for b in run for t in (ln.strip() for ln in inline(b.spans, ctx).splitlines()) if t]
+    if not lines:
         return ""
-    return "\n".join([f"> [!info] {texts[0]}", *(f"> {t}" for t in texts[1:])])
+    return "\n".join([f"> [!info] {lines[0]}", *(f"> {t}" for t in lines[1:])])
 
 
 def render_block(block: Block, ctx: Context, in_hub: bool = False) -> str:

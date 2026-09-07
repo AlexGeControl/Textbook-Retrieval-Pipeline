@@ -120,6 +120,45 @@ def test_paragraph_list_and_title_rules():
     )
 
 
+def test_currency_dollars_are_escaped_and_inline_math_gets_its_space_back():
+    ctx = _ctx()
+    para = _b("p000-b006", "paragraph", ("text", "a proposed $1 million investment ($ millions)"))
+    assert render_block(para, ctx) == "a proposed \\$1 million investment (\\$ millions)"
+    glued = _b(
+        "p000-b007",
+        "paragraph",
+        ("text", "where "),
+        ("equation_inline", "C_0 = 1"),
+        ("text", "million, so "),
+        ("equation_inline", "r"),
+        ("text", "."),
+    )
+    assert render_block(glued, ctx) == "where $C_0 = 1$ million, so $r$."
+    t = Block(
+        id="p001-b009",
+        index=9,
+        type="table",
+        page_idx=1,
+        bbox=(0, 0, 1, 1),
+        html="<table><tr><td>Cash Flows ($)</td><td>$C_0$</td><td>$1,949^a$</td></tr>"
+        "<tr><td>$4,000</td><td>$ 5,000-$6,000</td><td>$(1 + r)^{2}$</td></tr></table>",
+        sub_type="simple_table",
+        captions=(Span("text", "Market Value ($ millions)"),),
+    )
+    out = render_block(t, ctx)
+    assert out.startswith("Market Value (\\$ millions)\n\n")
+    assert "| Cash Flows (\\$) | $C_0$ | $1,949^a$ |" in out
+    assert "| \\$4,000 | \\$ 5,000-\\$6,000 | $(1 + r)^{2}$ |" in out
+
+
+def test_aside_callout_quotes_every_line_of_a_multiline_block():
+    from src.render import aside_callout
+
+    ctx = _ctx()
+    run = [_b("p009-b020", "page_aside_text", ("text", "Try It!\nCalculate\nthe MIRR"))]
+    assert aside_callout(run, ctx) == "> [!info] Try It!\n> Calculate\n> the MIRR"
+
+
 def test_running_matter_and_suspects():
     ctx = _ctx(suspects={"p001-b003"}, dropped={"p001-b004"})
     assert render_block(_b("p001-b002", "page_header", ("text", "CHAPTER 5")), ctx) == ""
