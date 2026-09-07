@@ -20,6 +20,8 @@
 #   routing             per-book MinerU flags consumed by stage 2:
 #                       inline_formula -> -f, table -> -t, image_analysis -> --image-analysis,
 #                       lang -> -l
+#   review              per-book stage-5 switches: textlayer_math: false disables the text-layer
+#                       check of display formulas (symbol fonts encode Greek/operators as Latin)
 
 books:
   bkm:
@@ -83,6 +85,7 @@ books:
       patches: [{rule: number_from_children, level: 1}]   # chapter titles carry no number; sections do
     chapter_ranges: {}
     routing: {inline_formula: true}
+    review: {textlayer_math: false}   # MathematicalPi glyphs: 1/78 formulas match the text layer (2026-09-07)
 
   corpfin:
     title: "Corporate Finance"

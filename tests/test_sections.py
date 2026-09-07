@@ -176,6 +176,12 @@ def test_resolve_first_child_and_chapter_start_rules():
     assert secs[0].blocks == []
 
 
+def test_chapter_start_requires_a_chapter_title():
+    meta = _meta([_sec(None, "Introduction", 0)], pages=1)
+    with pytest.raises(SectionError, match="Introduction.*pdf page 149"):
+        resolve(meta, [[_b("p000-b000", "paragraph", "no chapter title on this page")]])
+
+
 def test_resolve_fails_loudly_naming_section_and_page():
     meta = _meta([_sec(None, "End of Chapter Material", 1)], pages=2)
     pages = [

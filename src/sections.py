@@ -153,7 +153,7 @@ def _after_chapter_title(page: list[Block]) -> Block | None:
         if b.type == "title" and b.level == 1:
             seen_title = True
             continue
-        if b.type in TEXT_BEARING and b.text().strip() and (seen_title or b.type != "title"):
+        if seen_title and b.type in TEXT_BEARING and b.text().strip():
             return b
     return None
 
