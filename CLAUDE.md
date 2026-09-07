@@ -16,9 +16,10 @@ chapter-unit extraction with sections in meta.json, `table|formula|chart`
 flags, GPU 1 + local model pins, BMA ch. 5–6 benchmark, optional reading lists).
 
 Stage 5 (pre-pass, two-tier review skill, section rendering, vault commit) is
-designed in `docs/plans/2026-09-07-stage5-design.md`, which supersedes HANDOVER
-§6 "Stage 5" and the gate 4–5 details of §7; `docs/plans/2026-09-07-stage5-bootstrap.md`
-records the state, fixed items and questions it started from.
+designed in `docs/plans/2026-09-07-stage5-design.md` (read its Amendments too), which
+supersedes HANDOVER §6 "Stage 5" and the gate 4–5 details of §7, and built by
+`docs/plans/2026-09-07-stage5-plan.md`; `docs/plans/2026-09-07-stage5-handover.md` is the
+resume point for the implementation session.
 
 ## Stack
 

@@ -1,8 +1,8 @@
 # Stage 5 design: pre-pass, review skill, rendering and vault commit
 
-Written 2026-09-07 from a brainstorming session that started from
-`docs/plans/2026-09-07-stage5-bootstrap.md`, confirmed its §3 as fixed and settled its §5
-questions one at a time. For stage 5 this document supersedes HANDOVER §6 "Stage 5" and the
+Written 2026-09-07 from a brainstorming session that started from a bootstrap note (retired
+the same day into this document and `docs/plans/2026-09-07-stage5-handover.md`), confirmed its
+fixed items and settled its eight open questions one at a time. For stage 5 this document supersedes HANDOVER §6 "Stage 5" and the
 gate 4–5 details of §7; HANDOVER §1 (principles) and §8 (fallbacks: do not pre-build) still
 hold, and the stages 1–4 design (`docs/plans/2026-09-06-stages-1-4-design.md`) is unchanged.
 Scope: HANDOVER §7 gates 4 and 5 on the eight extracted chapters under `work/`. The batch loop
@@ -14,12 +14,12 @@ stage 5. The vault host may be unreachable; certification never depends on it.
 
 ## 1. Decisions
 
-Bootstrap §3 (HANDOVER §6 rules, hard rules, one note per section, skill location, gates 4–5)
-is confirmed without change. One reading note: "outline level 3" means the outline level
+The bootstrap's fixed items (HANDOVER §6 rules, hard rules, one note per section, skill
+location, gates 4–5) are confirmed without change. One reading note: "outline level 3" means the outline level
 directly below the chapter, which is what `meta.json.sections` records (level 3 in bkm, bma,
 strat and acct; level 2 in corpfin, stats and ops, whose chapters sit at outline level 1).
 
-| Open item (bootstrap §5) | Resolution | Why |
+| Open item (the bootstrap's eight questions) | Resolution | Why |
 |---|---|---|
 | 1 Vault transport | Certify into a local staging tree `vault/<book>/<chNN>/` (gitignored, self-contained); push is a separate, retryable step over the Obsidian Local REST API at section or chapter granularity; host, port and key from `OBSIDIAN_HOST`, `OBSIDIAN_PORT`, `OBSIDIAN_API_KEY`. Default push root `raw/textbooks/`. CLI with argparse subparsers, not `fire`. | The only shape where certification does not depend on the network and no second source of truth exists. The REST interface was probed live (§3). `fire` parses argument values as Python literals, so section numbers such as `5.1` would arrive as floats. |
 | 2 Note layout | Every `meta.json` section becomes one note, no grouping; a hub note per chapter; filenames `<book>-<chNN>-<NN>-<slug>.md` (hub `00`), assets `<book>-<chNN>-<block id>.<ext>`; frontmatter = the five fixed keys plus `title`, `section`, `book_title`, `edition`, `certified_at`; no links into lecture notes. | strat and acct have no numbered sections, so "numbered only" yields nothing there; grouping is editorial and the mission is as-is. Key Takeaways, Problem Sets and Summary recur in every chapter, and Obsidian resolves `[[…]]` by shortest path, so bare titles collide in a shared vault. Kebab-case matches the vault's existing `notes/01-introduction-to-finance/` convention. |
