@@ -118,7 +118,10 @@ def validate(patch: Patch, blocks: dict[str, Block]) -> None:
         raise PatchError(f"{patch.id}: set_content on a {block.type}")
     if patch.op == "set_inline_math":
         # An MFR inline formula corrected against the crop / text layer (gate 4, bma ch05 hunks 2
-        # and 29): `old` is the exact LaTeX of exactly one equation_inline span of the block.
+        # and 29): `old` is the exact LaTeX of an equation_inline span of the block. The MFR
+        # mis-reads a symbol the same way wherever it occurs (bkm ch23 p003-b003: E_1 twice as
+        # E_{\uparrow}), so every span equal to `old` is rewritten; identical old and identical
+        # new leave nothing ambiguous.
         if _span_field(block) is None:
             raise PatchError(f"{patch.id}: set_inline_math on a {block.type}")
         if not patch.new.strip():
@@ -128,9 +131,9 @@ def validate(patch: Patch, blocks: dict[str, Block]) -> None:
             for sp in _all_spans(block)
             if sp.type == "equation_inline" and sp.content == patch.old
         )
-        if n != 1:
+        if n == 0:
             raise PatchError(
-                f"{patch.id}: inline-math span {patch.old!r} occurs {n} times in {block.id}, need 1"
+                f"{patch.id}: inline-math span {patch.old!r} occurs 0 times in {block.id}"
             )
         return
     if patch.op != "replace":
@@ -152,13 +155,13 @@ def _all_spans(block: Block) -> tuple[Span, ...]:
 
 
 def _set_inline_math(b: Block, old: str, new: str) -> Block:
+    """Rewrite every equation_inline span equal to `old` (validate guarantees at least one)."""
     field = _span_field(b)
-    spans = list(getattr(b, field))
-    for i, sp in enumerate(spans):
-        if sp.type == "equation_inline" and sp.content == old:
-            spans[i] = Span("equation_inline", new)
-            return replace(b, **{field: tuple(spans)})
-    raise PatchError(f"{b.id}: inline-math span not found")
+    spans = [
+        Span("equation_inline", new) if sp.type == "equation_inline" and sp.content == old else sp
+        for sp in getattr(b, field)
+    ]
+    return replace(b, **{field: tuple(spans)})
 
 
 def _replace_text(b: Block, old: str, new: str) -> Block:

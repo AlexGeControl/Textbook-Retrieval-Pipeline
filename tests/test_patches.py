@@ -138,3 +138,28 @@ def test_load_without_file_is_empty(tmp_path):
     content_list = tmp_path / "c.json"
     content_list.write_text("[]")
     assert load(tmp_path, content_list) == []
+
+
+def test_set_inline_math_rewrites_every_identical_span():
+    # bkm ch23 p003-b003: the MFR read E_1 as E_{\uparrow} twice in one paragraph. The same
+    # wrong LaTeX with the same correction is unambiguous, so one patch fixes all of them.
+    twice = _para(
+        "p000-b004",
+        ("text", "Let "),
+        ("equation_inline", "E _ { \\uparrow }"),
+        ("text", " denote it. "),
+        ("equation_inline", "E _ { \\uparrow }"),
+        ("text", " is random. "),
+        ("equation_inline", "E _ { 0 }"),
+    )
+    rv = _p(
+        id="rv-0001",
+        source="review",
+        block="p000-b004",
+        op="set_inline_math",
+        old="E _ { \\uparrow }",
+        new="E _ { 1 }",
+    )
+    out = apply([twice], [rv])
+    assert out[0].inline_math() == ("E _ { 1 }", "E _ { 1 }", "E _ { 0 }")
+    assert out[0].text() == twice.text()

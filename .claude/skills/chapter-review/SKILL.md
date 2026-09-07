@@ -58,7 +58,8 @@ targets are the composite entry points (`make -n <target> BOOK=B CH=N` shows wha
      `--verdict dropped` for a suspect that is running matter. Leave `unresolved` with a note
      when the crop does not settle it.
    - inline formulas (MFR output inside a text block): `review patch --block … --op
-     set_inline_math --old "<exact current LaTeX of that span>" --new "<corrected LaTeX>" --hunk i`,
+     set_inline_math --old "<exact current LaTeX of that span>" --new "<corrected LaTeX>" --hunk i`
+     (every span of the block with that exact LaTeX is rewritten: one patch covers a repeated misread),
      then the hunk verdict `patched`. A footnote marker the MFR swallowed into the LaTeX goes
      back into the following text span with a `replace` (`--new "<sup>n</sup> …"`).
    - headings: `review heading --title "…" --verdict found_as --block <id>` or
