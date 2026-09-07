@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -21,10 +22,15 @@ _LINK = re.compile(r"(?<!!)\[\[([^\]|#]+)(?:\|[^\]]*)?\]\]")
 _FOOT_REF = re.compile(r"\[\^([^\]]+)\](?!:)")
 _FOOT_DEF = re.compile(r"^\[\^([^\]]+)\]:", re.MULTILINE)
 _DISPLAY = re.compile(r"\$\$(.*?)\$\$", re.DOTALL)
-_INLINE = re.compile(r"(?<![\\$])\$(?!\$)([^$\n]+?)(?<![\\$])\$(?!\$)")
 _UNESCAPED = re.compile(r"(?<!\\)\$")  # `\$` is a literal dollar sign (currency)
 _TABLE_HTML = re.compile(r"<table>.*?</table>", re.DOTALL)  # Obsidian renders HTML blocks as HTML
 _CALLOUT_HEAD = re.compile(r"^> \[!\w+\](-|\+)?( .*)?$")
+# Obsidian's own parse of a note over the Local REST API (plugin 4.1.3 offers no HTML rendering,
+# measured 2026-09-07): note+json carries frontmatter, content and the *resolved* link/embed
+# targets; document-map+json carries the heading tree. Rendering itself is the mobile pass.
+NOTE_JSON = "application/vnd.olrapi.note+json"
+DOCUMENT_MAP = "application/vnd.olrapi.document-map+json"
+_HEADING = re.compile(r"(?m)^#{1,6} ")
 
 
 @dataclass
@@ -175,4 +181,68 @@ def check_tree(tree: Path, ch: Chapter, section: str | None = None) -> list[Prob
     for rel in files:
         if rel.startswith("assets/") and rel[7:] not in referenced and section is None:
             out.append(Problem(rel, "asset referenced by no note"))
+    return out
+
+
+def note_json(client, path: str, retries: int = 3) -> dict:
+    """Obsidian's note+json; waits briefly for the metadata cache to index a fresh file."""
+    for attempt in range(retries + 1):
+        r = client.get(path, accept=NOTE_JSON)
+        if r.status_code != 200:
+            raise LookupError(f"GET {path}: HTTP {r.status_code}")
+        data = r.json()
+        if data.get("links") or attempt == retries:
+            return data
+        time.sleep(1)
+    return data
+
+
+def source_targets(text: str) -> tuple[set[str], int]:
+    """Link and embed targets (note names, asset file names) and the heading count of a note."""
+    _fm, body = _split_frontmatter(text)
+    targets = {m.group(1) for m in _LINK.finditer(body)} | {
+        m.group(1) for m in _EMBED.finditer(body)
+    }
+    return targets, len(_HEADING.findall(body))
+
+
+def check_parsed(
+    tree: Path, ch: Chapter, client, root: str, section: str | None = None
+) -> list[Problem]:
+    """Compare Obsidian's parse of each pushed note with the source: frontmatter, content, every
+    link and embed resolved, heading count."""
+    manifest = json.loads((tree / "manifest.json").read_text())
+    push = manifest.get("push") or {}
+    if not push:
+        return [Problem("manifest.json", "not pushed yet — check --parsed needs a pushed chapter")]
+    out: list[Problem] = []
+    dest = f"{push['root']}{ch.book}/ch{ch.number:02d}/"
+    for rel in sorted(n for n in manifest["files"] if n.endswith(".md")):
+        text = (tree / rel).read_text()
+        fm, _body = _split_frontmatter(text)
+        targets, n_headings = source_targets(text)
+        try:
+            data = note_json(client, dest + rel)
+        except LookupError as e:
+            out.append(Problem(rel, str(e)))
+            continue
+        if data.get("frontmatter") != (fm or {}):
+            out.append(Problem(rel, "Obsidian parsed the frontmatter differently"))
+        if data.get("content") != text:
+            out.append(Problem(rel, "content in the vault differs from the staging tree"))
+        resolved = {p.rsplit("/", 1)[-1] for p in data.get("links", [])}
+        resolved |= {n[:-3] for n in resolved if n.endswith(".md")}
+        missing = sorted(t for t in targets if t not in resolved)
+        if missing:
+            out.append(Problem(rel, f"unresolved in Obsidian: {missing}"))
+        dm = client.get(dest + rel, accept=DOCUMENT_MAP)
+        if dm.status_code != 200:
+            out.append(Problem(rel, f"document map GET returned {dm.status_code}"))
+        elif len(dm.json().get("headings", [])) != n_headings:
+            out.append(
+                Problem(
+                    rel,
+                    f"Obsidian sees {len(dm.json()['headings'])} headings, source has {n_headings}",
+                )
+            )
     return out

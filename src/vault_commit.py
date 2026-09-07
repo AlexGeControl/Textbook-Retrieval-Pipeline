@@ -9,10 +9,13 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import mimetypes
 import os
 import shutil
 import sys
 from pathlib import Path
+
+import requests
 
 from src import patches as patchmod
 from src.blocks import Block
@@ -130,6 +133,112 @@ def render_chapter(ch: Chapter, certified: bool, section: str | None = None) -> 
     return tree
 
 
+class VaultClient:
+    """Obsidian Local REST API (verified 2026-09-07: PUT creates parents, binary PUT is exact)."""
+
+    def __init__(self):
+        host, key = os.environ.get("OBSIDIAN_HOST"), os.environ.get("OBSIDIAN_API_KEY")
+        missing = [n for n, v in (("OBSIDIAN_HOST", host), ("OBSIDIAN_API_KEY", key)) if not v]
+        if missing:
+            raise CommitError(f"missing {', '.join(missing)} in the environment")
+        port = os.environ.get("OBSIDIAN_PORT", "27123")
+        proto = os.environ.get("OBSIDIAN_PROTOCOL", "http")
+        self.base = f"{proto}://{host}:{port}"
+        self.session = requests.Session()
+        self.session.headers["Authorization"] = f"Bearer {key}"
+
+    def _call(self, method: str, path: str, **kw) -> requests.Response:
+        try:
+            return self.session.request(method, f"{self.base}/{path}", timeout=15, **kw)
+        except requests.RequestException as e:
+            raise CommitError(f"{self.base} unreachable: {type(e).__name__}") from e
+
+    def ping(self) -> dict:
+        info = self._call("GET", "").json()
+        if not info.get("authenticated"):
+            raise CommitError(f"{self.base}: authenticated false — this key is for another vault")
+        return info
+
+    def put(self, path: str, data: bytes, content_type: str) -> int:
+        r = self._call("PUT", f"vault/{path}", data=data, headers={"Content-Type": content_type})
+        if r.status_code not in (200, 204):
+            raise CommitError(f"PUT {path}: HTTP {r.status_code} {r.text[:120]}")
+        return r.status_code
+
+    def get(self, path: str, accept: str | None = None) -> requests.Response:
+        headers = {"Accept": accept} if accept else {}
+        return self._call("GET", f"vault/{path}", headers=headers)
+
+    def delete(self, path: str, permanent: bool = True) -> int:
+        return self._call(
+            "DELETE", f"vault/{path}", params={"permanent": str(permanent).lower()}
+        ).status_code
+
+
+def push_chapter(ch: Chapter, root: str, section: str | None = None, client=None) -> int:
+    """PUT the certified tree (or one section's files) and read each file back. Returns failures."""
+    from src.vault_checks import check_tree
+
+    tree = staging_dir(ch)
+    manifest = load_manifest(tree)
+    if manifest.get("status") != "certified":
+        raise CommitError(
+            f"{tree} is {manifest.get('status', 'unrendered')}, not certified — nothing pushed"
+        )
+    problems = check_tree(tree, ch, section)
+    if problems:
+        raise CommitError(
+            f"{len(problems)} battery problem(s), first: {problems[0].where}: {problems[0].msg}"
+        )
+    files = manifest["files"]
+    if section:
+        n_pages = ch.meta["pdf_pages"][1] - ch.meta["pdf_pages"][0] + 1
+        picked = {
+            s.ordinal
+            for s in select(resolve(ch.meta, pages_of(ch.patched_blocks(), n_pages)), section)
+        }
+        files = {k: v for k, v in files.items() if v["section"] in picked}
+    client = client or VaultClient()
+    client.ping()
+    root = root.strip("/")
+    prefix = f"{root}/" if root else ""
+    dest = f"{prefix}{ch.book}/ch{ch.number:02d}/"
+    results: dict[str, dict] = {}
+    for rel in sorted(files):
+        data = (tree / rel).read_bytes()
+        ctype = (
+            "text/markdown"
+            if rel.endswith(".md")
+            else (mimetypes.guess_type(rel)[0] or "application/octet-stream")
+        )
+        status = client.put(dest + rel, data, ctype)
+        back = client.get(dest + rel)
+        results[rel] = {
+            "status": status,
+            "verified": back.status_code == 200 and back.content == data,
+        }
+    previous = (manifest.get("push") or {}).get("files", {})
+    manifest["push"] = {
+        "root": prefix,
+        "host": client.base,
+        "pushed_at": now(),
+        "files": {**previous, **results},
+    }
+    (tree / "manifest.json").write_text(json.dumps(manifest, indent=2, ensure_ascii=False) + "\n")
+    return sum(not r["verified"] for r in results.values())
+
+
+def cmd_push(ch: Chapter, args) -> int:
+    failed = push_chapter(ch, args.root, args.section)
+    m = load_manifest(staging_dir(ch))
+    n = len(m["push"]["files"])
+    print(
+        f"push: {n} file(s) to {m['push']['host']} {m['push']['root']}{ch.book}/ch{ch.number:02d}/"
+        f" — {failed} failed read-back"
+    )
+    return 1 if failed else 0
+
+
 def cmd_render(ch: Chapter, args) -> int:
     tree = render_chapter(ch, certified=False, section=args.section)
     m = load_manifest(tree)
@@ -140,12 +249,20 @@ def cmd_render(ch: Chapter, args) -> int:
 
 
 def cmd_check(ch: Chapter, args) -> int:
-    from src.vault_checks import check_tree
+    from src.vault_checks import check_parsed, check_tree
 
     tree = staging_dir(ch)
     if not (tree / "manifest.json").exists():
         raise CommitError(f"{tree} has no manifest — run render first")
     problems = check_tree(tree, ch, args.section)
+    if args.parsed:
+        try:
+            client = VaultClient()
+            client.ping()
+        except CommitError as e:
+            print(f"check --parsed: skipped, host unreachable ({e})")
+        else:
+            problems += check_parsed(tree, ch, client, args.root, args.section)
     for p in problems:
         print(f"check: {p.where}: {p.msg}")
     print(f"check: {tree} {'OK' if not problems else f'{len(problems)} problem(s)'}")
@@ -155,15 +272,26 @@ def cmd_check(ch: Chapter, args) -> int:
 def build_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(prog="src.vault_commit", description="Stage 5b staging tree")
     sub = ap.add_subparsers(dest="cmd", required=True)
-    for name, func, help_ in (
-        ("render", cmd_render, "write vault/<book>/<chNN>/"),
-        ("check", cmd_check, "run the battery"),
-    ):
-        p = sub.add_parser(name, help=help_)
+
+    def common(p):
         p.add_argument("--book", required=True)
         p.add_argument("--chapter", required=True)
         p.add_argument("--section", help="ordinal, slug or note name")
-        p.set_defaults(func=func)
+
+    p = sub.add_parser("render", help="write vault/<book>/<chNN>/")
+    common(p)
+    p.set_defaults(func=cmd_render)
+    p = sub.add_parser("check", help="run the battery")
+    common(p)
+    p.add_argument(
+        "--parsed", action="store_true", help="also compare Obsidian's parse of the pushed notes"
+    )
+    p.add_argument("--root", default="raw/textbooks/", help="vault folder the chapter is under")
+    p.set_defaults(func=cmd_check)
+    p = sub.add_parser("push", help="PUT the certified tree into the vault and read it back")
+    common(p)
+    p.add_argument("--root", default="raw/textbooks/", help="vault folder to push under")
+    p.set_defaults(func=cmd_push)
     return ap
 
 
