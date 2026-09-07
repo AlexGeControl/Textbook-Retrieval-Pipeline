@@ -276,6 +276,35 @@ def test_junk_hunk_spanning_two_blocks_drops_both(tmp_path, monkeypatch):
     assert report["review"]["hunks"][0]["patches"] == ["pp-0001", "pp-0002"]
 
 
+def test_rerun_keeps_manual_hunk_verdicts(tmp_path, monkeypatch):
+    # a second `make review` after a review session must not wipe the reviewer's hunk verdicts
+    wd = make_work_dir(
+        tmp_path,
+        monkeypatch,
+        pages=[_page(_p("the the budget"), _p("oth er text"))],
+        hunks=[
+            _hunk("p000-b000", "the the budget", "the the budget"),
+            _hunk("p000-b001", "other text", "oth er text"),
+        ],
+        pdf_lines=["the the budget other text"],
+    )
+    counts = run(Chapter("bma", 5))
+    assert counts["needs_eyes"] == 1
+    ch = Chapter("bma", 5)
+    ch.review["hunks"][0] = {"verdict": "move", "rule": "manual", "patches": [], "note": "seen"}
+    ch.save()
+    counts = run(Chapter("bma", 5))
+    report = json.loads((wd / "qa_report.json").read_text())
+    assert report["review"]["hunks"][0] == {
+        "verdict": "move",
+        "rule": "manual",
+        "patches": [],
+        "note": "seen",
+    }
+    assert counts["manual"] == 1 and counts["needs_eyes"] == 0
+    assert report["review"]["prepass"]["counts"]["manual"] == 1
+
+
 @pytest.mark.workdir
 def test_bma_ch05_prepass_numbers():
     work_chapter("bma", "ch05")

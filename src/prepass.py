@@ -341,7 +341,11 @@ def run(ch: Chapter) -> Counter:
     ch.patches = [p for p in ch.patches if p.source != "prepass"]
     counts: Counter = Counter()
     made: dict[tuple, str] = {}
+    previous = review["hunks"]
     for i in range(len(pp.hunks)):
+        if i < len(previous) and previous[i].get("rule") == "manual":
+            counts["manual"] += 1  # the reviewer's verdict outranks a rerun (gate 4, 2026-09-07)
+            continue
         v = pp.classify(i)
         keys = [(v.block_id, *v.spec)] if v.spec is not None else []
         keys += [(bid, "drop_block", "", "") for bid in v.also]
@@ -366,7 +370,7 @@ def run(ch: Chapter) -> Counter:
                 added.append(key)
             ids.append(made[key])
         rule = "needs_eyes" if v.verdict == "unresolved" else v.rule
-        review["hunks"][i] = {"verdict": v.verdict, "rule": rule, "patches": ids, "note": v.note}
+        previous[i] = {"verdict": v.verdict, "rule": rule, "patches": ids, "note": v.note}
         counts[rule.removeprefix("move+")] += 1
     review["prepass"] = {"timestamp": now(), "counts": dict(counts)}
     ch.save()
