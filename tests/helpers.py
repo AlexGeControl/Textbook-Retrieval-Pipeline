@@ -27,3 +27,14 @@ def cached_hybrid_auto(book: str, name: str) -> Path:
             f"fixture cache missing: {d} — seed from work/sanity or run pytest -m integration"
         )
     return d
+
+
+WORK = Path("work")
+
+
+def work_chapter(book: str, chapter: str) -> Path:
+    """work/<book>/<chNN>/ with a qa_report.json, or skip (the dirs are machine-local)."""
+    d = WORK / book / chapter
+    if not (d / "qa_report.json").exists():
+        pytest.skip(f"work dir missing: {d} — run make chapter BOOK={book} CH={int(chapter[2:])}")
+    return d

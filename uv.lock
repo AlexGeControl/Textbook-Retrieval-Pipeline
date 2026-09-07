@@ -5363,9 +5363,12 @@ name = "textbook-retrieval-pipeline"
 version = "0.0.1"
 source = { virtual = "." }
 dependencies = [
+    { name = "lxml" },
     { name = "mineru", extra = ["pipeline"] },
+    { name = "pylatexenc" },
     { name = "pymupdf" },
     { name = "pyyaml" },
+    { name = "requests" },
 ]
 
 [package.optional-dependencies]
@@ -5381,10 +5384,13 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "lxml", specifier = ">=5" },
     { name = "mineru", extras = ["pipeline"], specifier = ">=3.4.5,<4" },
     { name = "mineru", extras = ["vllm"], marker = "sys_platform == 'linux' and extra == 'server'", specifier = ">=3.4.5,<4" },
+    { name = "pylatexenc", specifier = ">=2.10" },
     { name = "pymupdf", specifier = ">=1.28" },
     { name = "pyyaml", specifier = ">=6" },
+    { name = "requests", specifier = ">=2.31" },
 ]
 provides-extras = ["server"]
 

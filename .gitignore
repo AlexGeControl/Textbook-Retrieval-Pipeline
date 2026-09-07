@@ -12,6 +12,9 @@ tests/fixtures/**
 !tests/fixtures/cache/
 !tests/fixtures/cache/.gitkeep
 
+# Stage-5 staging tree: rendered notes and copied crops (book content)
+vault/**
+
 # Python
 .venv/
 __pycache__/
