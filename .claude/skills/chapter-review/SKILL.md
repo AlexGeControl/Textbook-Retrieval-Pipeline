@@ -57,6 +57,10 @@ targets are the composite entry points (`make -n <target> BOOK=B CH=N` shows wha
      `review block --id … --verdict patched --patch <id>`; or `--verdict verified`; or
      `--verdict dropped` for a suspect that is running matter. Leave `unresolved` with a note
      when the crop does not settle it.
+   - inline formulas (MFR output inside a text block): `review patch --block … --op
+     set_inline_math --old "<exact current LaTeX of that span>" --new "<corrected LaTeX>" --hunk i`,
+     then the hunk verdict `patched`. A footnote marker the MFR swallowed into the LaTeX goes
+     back into the following text span with a `replace` (`--new "<sup>n</sup> …"`).
    - headings: `review heading --title "…" --verdict found_as --block <id>` or
      `--verdict not_a_heading --note "boxed feature"`.
    - footnotes: `review footnote --id n --verdict accepted --note "referenced inside table X"`
@@ -72,8 +76,9 @@ targets are the composite entry points (`make -n <target> BOOK=B CH=N` shows wha
 
 ## Rules you must not break
 
-- Surgical: a `replace` changes the smallest unique substring. A `set_*` rewrites one VLM body
-  against its crop and nothing else.
+- Surgical: a `replace` changes the smallest unique substring. A `set_*` rewrites one VLM or
+  MFR body (display formula, table, chart content, one inline formula) against its crop and
+  nothing else.
 - Text layer wins on running text; VLM bodies are judged against their crop.
 - No verdict without evidence: a hunk you did not look at stays `unresolved`.
 - Counts only in your report: never paste book text into anything committed.

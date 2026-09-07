@@ -13,8 +13,8 @@ from pathlib import Path
 
 from src.blocks import CAPTIONED, TEXT_BEARING, Block, Span
 
-OPS = ("replace", "drop_block", "set_math", "set_html", "set_content")
-REVIEW_ONLY = frozenset({"set_math", "set_html", "set_content"})
+OPS = ("replace", "drop_block", "set_math", "set_html", "set_content", "set_inline_math")
+REVIEW_ONLY = frozenset({"set_math", "set_html", "set_content", "set_inline_math"})
 SOURCES = ("prepass", "review")
 PREFIX = {"prepass": "pp", "review": "rv"}
 
@@ -116,6 +116,23 @@ def validate(patch: Patch, blocks: dict[str, Block]) -> None:
         raise PatchError(f"{patch.id}: set_html on a {block.type}")
     if patch.op == "set_content" and block.type not in ("chart", "image"):
         raise PatchError(f"{patch.id}: set_content on a {block.type}")
+    if patch.op == "set_inline_math":
+        # An MFR inline formula corrected against the crop / text layer (gate 4, bma ch05 hunks 2
+        # and 29): `old` is the exact LaTeX of exactly one equation_inline span of the block.
+        if _span_field(block) is None:
+            raise PatchError(f"{patch.id}: set_inline_math on a {block.type}")
+        if not patch.new.strip():
+            raise PatchError(f"{patch.id}: set_inline_math needs a non-empty new")
+        n = sum(
+            1
+            for sp in _all_spans(block)
+            if sp.type == "equation_inline" and sp.content == patch.old
+        )
+        if n != 1:
+            raise PatchError(
+                f"{patch.id}: inline-math span {patch.old!r} occurs {n} times in {block.id}, need 1"
+            )
+        return
     if patch.op != "replace":
         return
     if not patch.old:
@@ -128,6 +145,20 @@ def validate(patch: Patch, blocks: dict[str, Block]) -> None:
         spans = getattr(block, field)
         if not any(s.type == "text" and patch.old in s.content for s in spans):
             raise PatchError(f"{patch.id}: old crosses a span boundary in {block.id}")
+
+
+def _all_spans(block: Block) -> tuple[Span, ...]:
+    return (*block.spans, *block.captions)
+
+
+def _set_inline_math(b: Block, old: str, new: str) -> Block:
+    field = _span_field(b)
+    spans = list(getattr(b, field))
+    for i, sp in enumerate(spans):
+        if sp.type == "equation_inline" and sp.content == old:
+            spans[i] = Span("equation_inline", new)
+            return replace(b, **{field: tuple(spans)})
+    raise PatchError(f"{b.id}: inline-math span not found")
 
 
 def _replace_text(b: Block, old: str, new: str) -> Block:
@@ -158,6 +189,8 @@ def apply(blocks: list[Block], patches: list[Patch]) -> list[Block]:
             by_id[p.block] = replace(b, html=p.new)
         elif p.op == "set_content":
             by_id[p.block] = replace(b, content=p.new)
+        elif p.op == "set_inline_math":
+            by_id[p.block] = _set_inline_math(b, p.old, p.new)
         else:
             by_id[p.block] = _replace_text(b, p.old, p.new)
     return [by_id[b.id] for b in blocks if b.id in by_id]

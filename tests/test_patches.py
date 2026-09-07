@@ -82,6 +82,33 @@ def test_set_ops_are_reviewer_only_and_type_checked():
     assert out[2].math == "x"
 
 
+def test_set_inline_math_rewrites_exactly_one_equation_inline_span():
+    with pytest.raises(PatchError, match="reviewer-only"):
+        validate(_p(op="set_inline_math", old="C_0", new="\\$ 1"), BY_ID)
+    rv = _p(id="rv-0001", source="review", op="set_inline_math", old="C_0", new="\\$ 1")
+    out = apply(BLOCKS, [rv])
+    assert out[0].inline_math() == ("\\$ 1",)
+    assert out[0].text() == BLOCKS[0].text()  # text spans untouched
+    with pytest.raises(PatchError, match="inline-math span .* occurs 0 times"):
+        validate(
+            _p(id="rv-0002", source="review", op="set_inline_math", old="nope", new="x"), BY_ID
+        )
+    with pytest.raises(PatchError, match="set_inline_math on a equation_interline"):
+        validate(
+            _p(
+                id="rv-0003",
+                source="review",
+                op="set_inline_math",
+                block="p000-b003",
+                old="",
+                new="x",
+            ),
+            BY_ID,
+        )
+    with pytest.raises(PatchError, match="non-empty new"):
+        validate(_p(id="rv-0004", source="review", op="set_inline_math", old="C_0", new=" "), BY_ID)
+
+
 def test_id_prefix_must_match_source():
     with pytest.raises(PatchError, match="prefix"):
         validate(_p(id="rv-0001"), BY_ID)
