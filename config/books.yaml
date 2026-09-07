@@ -31,7 +31,19 @@ books:
     profile: formulas
     pdf: books/bkm/bkm.pdf
     body_range: {begin: 4, end: 1072}
-    toc: {source: outline, chapter_level: 2, chapter_pattern: '^Chapter (\d+):', page_offset: 29}
+    toc:
+      source: outline
+      chapter_level: 2
+      chapter_pattern: '^Chapter (\d+):'
+      page_offset: 29
+      patches:
+        # The outline's "End of Chapter Material" is a grouping label with no printed heading; the
+        # page opens with SUMMARY (2026-09-07, stage-5 anchor rule).
+        - {rule: rename, level: 3, match: '^End of Chapter Material$', replace: 'Summary'}
+        # 15 titles carry an unprinted U+0007 before the words; MuPDF re-encodes it as U+00B7 on
+        # any outline save, so it is removed at the source (2026-09-07, gate 5).
+        - {rule: rename, level: 3, match: '\x07', replace: ''}
+        - {rule: rename, level: 5, match: '\x07', replace: ''}
     chapter_ranges: {}
     routing: {inline_formula: true}
 
@@ -66,7 +78,13 @@ books:
     profile: prose+exhibits
     pdf: books/strat/strat.pdf
     body_range: {begin: 4, end: 509}
-    toc: {source: outline, chapter_level: 2, chapter_pattern: '^CHAPTER (\d+)\b', page_offset: 43}
+    toc:
+      source: outline
+      chapter_level: 2
+      chapter_pattern: '^CHAPTER (\d+)\b'
+      page_offset: 43
+      # Printed heading is plural (2026-09-07).
+      patches: [{rule: rename, level: 3, match: '^Experiential Exercise and Application Questions$', replace: 'Experiential Exercises and Application Questions'}]
     chapter_ranges: {}
     routing: {inline_formula: false}   # prose book; inline-formula detection is pure false-positive cost
 

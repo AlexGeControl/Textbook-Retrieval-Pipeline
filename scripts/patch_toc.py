@@ -7,7 +7,10 @@
 Rules come from toc.patches in config/books.yaml (see src/toc.py: number_from_children,
 rebuild_numbered_sections, insert, rename). --apply copies the current PDF to books/<id>/<id>.orig.pdf
 first, rewrites only the outline (incremental save: page objects and the text layer keep their
-bytes), then re-opens the file and asserts the outline and page count. Afterwards run
+bytes), then re-opens the file and asserts the outline and page count. MuPDF re-encodes control
+characters in titles it writes (bkm's U+0007 comes back as U+00B7): both modes report those
+entries as "control character re-encoded by MuPDF"; remove them with a rename rule instead.
+Afterwards run
 `uv run scripts/check_books.py` so books/manifest.json records the new sha256 and outline size.
 """
 
@@ -17,6 +20,7 @@ import argparse
 import filecmp
 import shutil
 import sys
+import unicodedata
 from pathlib import Path
 
 sys.path.insert(
@@ -28,14 +32,37 @@ import pymupdf
 from src.config import ROOT, ConfigError, book_cfg
 from src.toc import Change, PatchError, patch_toc
 
+REENCODED = "control character re-encoded by MuPDF"
+
 
 def orig_path(pdf: Path) -> Path:
     return pdf.with_name(pdf.stem + ".orig.pdf")
 
 
+def _mupdf_encoding(doc: pymupdf.Document, new_toc: list[list]) -> tuple[list[list], list[Change]]:
+    """Set `new_toc` on the open document (nothing is saved) and read it back: MuPDF's own
+    encoding of the list, which a saved outline must equal. It rewrites control characters in
+    titles (bkm's U+0007 comes back as U+00B7); any other difference is an error."""
+    doc.set_toc(new_toc)
+    got = doc.get_toc()
+    if len(got) != len(new_toc):
+        raise PatchError(f"set_toc returned {len(got)} entries for {len(new_toc)}")
+    notes = []
+    for want, have in zip(new_toc, got):
+        if want == have:
+            continue
+        control = any(unicodedata.category(ch) == "Cc" for ch in want[1])
+        if want[0] != have[0] or want[2] != have[2] or not control:
+            raise PatchError(f"set_toc changed {want!r} -> {have!r}")
+        notes.append(Change(want[0], want[2], want[1], have[1], REENCODED))
+    return got, notes
+
+
 def dry_run(pdf: Path, patches: list[dict]) -> list[Change]:
     doc = pymupdf.open(pdf)
-    _new, changes = patch_toc(doc.get_toc(), patches)
+    new, changes = patch_toc(doc.get_toc(), patches)
+    if changes:
+        changes += _mupdf_encoding(doc, new)[1]  # in memory only
     return changes
 
 
@@ -55,7 +82,7 @@ def apply(pdf: Path, patches: list[dict], force: bool = False) -> list[Change]:
         return []
     if not orig.exists():  # never overwrite an existing original, even with --force
         shutil.copy2(pdf, orig)
-    doc.set_toc(new_toc)
+    expected, notes = _mupdf_encoding(doc, new_toc)
     # Incremental save appends the new outline objects; every existing byte (pages, text
     # layer) is untouched. Fall back to a plain save without recompression if refused.
     try:
@@ -68,11 +95,11 @@ def apply(pdf: Path, patches: list[dict], force: bool = False) -> list[Change]:
     else:
         doc.close()
     check = pymupdf.open(pdf)
-    if check.get_toc() != new_toc:
+    if check.get_toc() != expected:
         raise PatchError(f"{pdf}: outline after save differs from the patched list")
     if check.page_count != page_count:
         raise PatchError(f"{pdf}: page count changed {page_count} -> {check.page_count}")
-    return changes
+    return changes + notes
 
 
 def print_table(changes: list[Change], total: int) -> None:

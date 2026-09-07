@@ -187,3 +187,42 @@ def test_insert_after_a_unique_match():
         patch_toc(toc, [{**rule[0], "after": {"level": 1, "match": "^Nope"}}])
     with pytest.raises(PatchError, match="matched 2"):
         patch_toc(toc, [{**rule[0], "after": {"level": 1, "match": "^Chapter"}}])
+
+
+# ---- MuPDF re-encodes control characters in outline titles (bkm's U+0007, gate 5) -------------
+
+REENCODED = "control character re-encoded by MuPDF"
+
+
+def make_book_with_control_char(path):
+    """set_toc cannot write a raw U+0007 (MuPDF re-encodes it in memory), so the title is set on
+    the outline item's xref as a UTF-16BE string, the way bkm's publisher tool stored it."""
+    pdf = make_book(path, [[1, "Robo Advice", 1], [1, "Preface", 2]])
+    doc = pymupdf.open(pdf)
+    xref = doc.get_toc(simple=False)[0][3]["xref"]
+    doc.xref_set_key(
+        xref, "Title", "<FEFF" + "".join(f"{ord(c):04X}" for c in "\x07Robo Advice") + ">"
+    )
+    doc.save(str(pdf), incremental=True, encryption=pymupdf.PDF_ENCRYPT_KEEP)
+    doc.close()
+    assert pymupdf.open(pdf).get_toc()[0][1] == "\x07Robo Advice"
+    return pdf
+
+
+def test_dry_run_and_apply_report_the_re_encoding_of_untouched_control_characters(tmp_path):
+    pdf = make_book_with_control_char(tmp_path / "c.pdf")
+    rename = [{"rule": "rename", "level": 1, "match": "^Preface$", "replace": "Front matter"}]
+    predicted = dry_run(pdf, rename)
+    assert [c.note for c in predicted] == ["", REENCODED]
+    assert predicted[0].new == "Front matter" and predicted[1].old == "\x07Robo Advice"
+    assert "\x07" not in predicted[1].new and predicted[1].new.endswith("Robo Advice")
+    assert apply(pdf, rename) == predicted
+    toc = pymupdf.open(pdf).get_toc()
+    assert toc[1][1] == "Front matter" and toc[0][1] == predicted[1].new
+
+
+def test_a_rename_that_removes_the_control_character_needs_no_re_encoding(tmp_path):
+    pdf = make_book_with_control_char(tmp_path / "c.pdf")
+    changes = apply(pdf, [{"rule": "rename", "level": 1, "match": "\\x07", "replace": ""}])
+    assert changes == [Change(1, 1, "\x07Robo Advice", "Robo Advice")]
+    assert pymupdf.open(pdf).get_toc()[0][1] == "Robo Advice"

@@ -1,7 +1,7 @@
 {
   "bkm": {
     "pdf": "books/bkm/bkm.pdf",
-    "sha256": "d5921c7d5f5de0cef53f5edf2fdd658aa8fd5fab2cc46c50529441e4ccd1c702",
+    "sha256": "0f2a455c405698b860094e0ea762965b2e0de54193a47657d7fc1ccea1d08393",
     "pages": 1073,
     "text_layer_sample": "21/21",
     "outline_entries": 832,
@@ -46,7 +46,7 @@
   },
   "strat": {
     "pdf": "books/strat/strat.pdf",
-    "sha256": "9e1b99739b39d19aa264ebadc7f1f40f6b88d5ad7056bb4d9b703efdf53cab53",
+    "sha256": "3fe278c026e780bf87a92326c7bfd0d196cb3f19e22316aeda3804ce36eced17",
     "pages": 509,
     "text_layer_sample": "21/21",
     "outline_entries": 442,

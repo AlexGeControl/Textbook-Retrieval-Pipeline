@@ -209,6 +209,8 @@ def test_subheading_entries_take_the_level_below_sections():
         ("ops", {"heading": 9, "chapter_start": 1}),
         ("corpfin", {"heading": 7}),
         ("stats", {"heading": 7}),
+        ("bkm", {"heading": 9}),
+        ("strat", {"heading": 24}),
     ],
 )
 def test_real_chapters_resolve(book, expect):
@@ -225,7 +227,10 @@ def test_real_chapters_resolve(book, expect):
 def test_bkm_and_strat_need_outline_renames_until_gate_5():
     import json
 
-    for book, title in (("bkm", "End of Chapter Material"), ("strat", "Experiential Exercise")):
+    for book, title in (
+        ("bkm", "End of Chapter Material"),
+        ("strat", "Experiential Exercise and Application Questions"),  # not a prefix of the plural
+    ):
         wd = work_chapter(book, "ch05")
         meta = json.loads((wd / "meta.json").read_text())
         pages = load_pages(v2_path(wd / "chapter" / "hybrid_auto", "chapter"))
