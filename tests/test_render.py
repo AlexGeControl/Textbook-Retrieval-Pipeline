@@ -375,3 +375,33 @@ def test_section_note_and_hub():
         "# Net Present Value" in hub_note and "**opener**" not in hub_note and "opener" in hub_note
     )
     assert "- [[bma-ch05-01-first|5-1 First]]\n- [[bma-ch05-02-second|Second]]" in hub_note
+
+
+def test_footnote_marker_at_span_start_converts():
+    # bkm ch22 p014-b012: the MFR swallowed "$1,010.4"; the restored marker opens the next span.
+    ctx = _ctx(footnote_ids={"4"})
+    spans = (Span("equation_inline", "\\$1,010."), Span("text", "<sup>4</sup> Let’s examine"))
+    assert inline(spans, ctx) == "$\\$1,010.$[^4] Let’s examine"
+
+
+def test_adjacent_inline_formulas_are_separated():
+    # bkm ch22 p023-b005: two equation_inline spans back to back rendered as `$…$$…$`.
+    ctx = _ctx()
+    spans = (Span("equation_inline", "F _ { 0 } ="), Span("equation_inline", "P _ { 0 }"))
+    assert inline(spans, ctx) == "$F _ { 0 } =$ $P _ { 0 }$"
+
+
+def test_currency_arithmetic_cell_is_not_math():
+    # bkm ch22 p016-b003: `-$4,000 × 1.01 = -$4,040` paired the two currency signs as LaTeX.
+    from src.render import escape_cell_dollars
+
+    assert escape_cell_dollars("-$4,000 × 1.01 = -$4,040") == "-\\$4,000 × 1.01 = -\\$4,040"
+    assert escape_cell_dollars("$1,949^a$") == "$1,949^a$"
+    assert escape_cell_dollars("$x = 2$") == "$x = 2$"
+
+
+def test_escaped_dollar_inside_cell_math_stays_inside():
+    # bkm ch22 p016-b003: `$F_0 = \$3,965$` closed the formula at the escaped currency sign.
+    from src.render import escape_cell_dollars
+
+    assert escape_cell_dollars("( $F_0 = \\$3,965$ )") == "( $F_0 = \\$3,965$ )"

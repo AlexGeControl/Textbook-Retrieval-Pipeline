@@ -25,7 +25,7 @@ _NUMBERED = re.compile(r"^\s*\d+[.)]\s")
 _SUP = re.compile(r"<sup>\s*(\d+)\s*</sup>")
 _ORDERED_START = re.compile(r"^(\d+)([.)])(\s)")
 _MARKER_START = re.compile(r"^(?:[#>]|[-*+]\s)")
-_CELL_MATH = re.compile(r"\$(?=\S)([^$\n]+?)(?<=\S)\$")
+_CELL_MATH = re.compile(r"\$(?=\S)((?:\\\$|[^$\n])+?)(?<=\S)\$")  # `\$` inside stays inside
 
 
 class RenderError(Exception):
@@ -83,7 +83,7 @@ def footnote_refs(text: str, ctx: Context) -> str:
     def sub(m: re.Match) -> str:
         prev = text[m.start() - 1] if m.start() else ""
         n = m.group(1)
-        if n in ctx.footnote_ids and not (prev.isdigit() or prev in ")]"):
+        if n in ctx.footnote_ids and not (prev.isdigit() or (prev and prev in ")]")):
             return f"[^{n}]"
         return m.group(0)
 
@@ -104,7 +104,13 @@ def _cell_is_math(content: str) -> bool:
     """`$…$` in a VLM table cell reads as LaTeX when it opens with a letter, `\\`, `(` or `{`, or with
     a digit followed somewhere by `\\`, `^`, `_` or `=` (`$1,949^a$`); `$4,000-$6,000` does not."""
     c0 = content[0]
-    return c0.isalpha() or c0 in "\\({" or (c0.isdigit() and any(ch in content for ch in "\\^_="))
+    if c0.isalpha() or c0 in "\\({":
+        return True
+    if not c0.isdigit() or not any(ch in content for ch in "\\^_="):
+        return False
+    # `$4,000 × 1.01 = -$4,040`: two currency signs paired by accident around an `=` that has
+    # nothing but a sign after it (bkm ch22 p016-b003); a real formula continues past `=`.
+    return not re.search(r"=\s*[-+−]?\s*$", content)
 
 
 def escape_cell_dollars(text: str) -> str:
@@ -130,6 +136,8 @@ def inline(spans: tuple[Span, ...], ctx: Context) -> str:
     after_math = False
     for s in spans:
         if s.type == "equation_inline":
+            if after_math:
+                out.append(" ")  # back-to-back formulas would otherwise read as `$$`
             out.append(f"${s.content.strip()}$")
             after_math = True
         elif s.type == "text":
@@ -339,7 +347,13 @@ def footnote_defs(chains: list[Chain], ctx: Context) -> str:
     for c in chains:
         texts = [inline(b.spans, ctx) for b in c.blocks]
         if c.marker:
-            first = _SUP.sub("", texts[0], count=1).strip()
+            # the definition's own leading marker: `<sup>n</sup>` if it did not convert, else `[^n]`
+            first = re.sub(
+                rf"^\s*(\[\^{re.escape(c.marker)}\]|<sup>\s*{re.escape(c.marker)}\s*</sup>)",
+                "",
+                texts[0].strip(),
+                count=1,
+            ).strip()
             lines = [f"[^{c.marker}]: {first}"] + [
                 f"    {t.strip()}" for t in texts[1:] if t.strip()
             ]
