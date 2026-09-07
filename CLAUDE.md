@@ -18,8 +18,8 @@ flags, GPU 1 + local model pins, BMA ch. 5–6 benchmark, optional reading lists
 Stage 5 (pre-pass, two-tier review skill, section rendering, vault commit) is
 designed in `docs/plans/2026-09-07-stage5-design.md` (read its Amendments too), which
 supersedes HANDOVER §6 "Stage 5" and the gate 4–5 details of §7, and built by
-`docs/plans/2026-09-07-stage5-plan.md`; `docs/plans/2026-09-07-stage5-handover.md` is the
-resume point for the implementation session.
+`docs/plans/2026-09-07-stage5-plan.md`; `docs/plans/2026-09-07-stage5-gate5-handover.md` is the
+resume point for Task 13 (gate 5) and Task 14.
 
 ## Stack
 
