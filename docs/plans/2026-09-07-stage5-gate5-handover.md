@@ -126,7 +126,7 @@ plan's "Measured"/addendum notes):
 - The Bash tool's working directory persists across calls: never `cd` into a subdirectory (a
   chain ran from `.claude/skills/chapter-review/` and silently did nothing). One heredoc per
   command line, or write scripts to the scratchpad first; heredoc bodies attach in operator order.
-- Heredocs must write `­` / `​` as escapes. The plan's code blocks carry
+- Heredocs must write `\u00ad` / `\u200b` as escapes. The plan's code blocks carry
   Markdown-invisible lint (PLW1510, SIM905, I001, F821 on fragments): `ruff check --fix` after
   copying and mirror the fix into the block.
 - `ruff format --check .` formats Python blocks in Markdown: keep the handover and metrics files
