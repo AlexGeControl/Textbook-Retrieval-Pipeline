@@ -12,6 +12,7 @@ from src.blocks import (
     SCHEMA_TYPE,
     TEXT_BEARING,
     VLM_GENERATED,
+    VLM_TRANSCRIBED,
     Block,
     BlockError,
     Span,
@@ -168,10 +169,37 @@ def test_unsupported_type_fails_loudly(tmp_path):
         load_blocks(_v2(tmp_path, [{"type": "paragraph"}]))
 
 
+ALGORITHM = {
+    "type": "algorithm",
+    "content": {
+        "algorithm_caption": [{"type": "text", "content": "TABLE 9.9 Summary of Key Notation"}],
+        "algorithm_content": [
+            {"type": "equation_inline", "content": "q ="},
+            {"type": "text", "content": " Order quantity  \n "},
+            {"type": "equation_inline", "content": "h ="},
+            {"type": "text", "content": " Holding cost per unit"},
+        ],
+    },
+    "bbox": [117, 176, 854, 518],
+}
+
+
+def test_algorithm_is_vlm_transcribed_text_with_a_caption(tmp_path):
+    (b,) = load_blocks(_v2(tmp_path, [[ALGORITHM]]))
+    assert b.type == "algorithm" and b.type in TEXT_BEARING and b.type in VLM_TRANSCRIBED
+    assert b.text() == " Order quantity  \n  Holding cost per unit"
+    assert b.inline_math() == ("q =", "h =")
+    assert b.caption_text() == "TABLE 9.9 Summary of Key Notation"
+    assert b.is_vlm_generated() and SCHEMA_TYPE["algorithm"] == "text"
+    assert b.crop == "" and b.type not in MASKED and b.type not in CAPTIONED
+
+
 def test_type_classes_partition_the_v2_vocabulary():
     assert not TEXT_BEARING & (VLM_GENERATED | FIGURES)
     assert RUNNING_MATTER < TEXT_BEARING
-    assert MASKED == VLM_GENERATED | {"image"} == frozenset(SCHEMA_TYPE)
+    assert VLM_TRANSCRIBED < TEXT_BEARING and not VLM_TRANSCRIBED & MASKED
+    assert MASKED == VLM_GENERATED | {"image"}
+    assert frozenset(SCHEMA_TYPE) == MASKED | VLM_TRANSCRIBED
     assert CAPTIONED == FIGURES | {"table"}
 
 
