@@ -183,3 +183,28 @@ def test_validate_reports_the_first_violation_path(table_cache):
         mutate(bad)
         with pytest.raises(SchemaError, match=pattern):
             validate(bad)
+
+
+def test_algorithm_is_flagged_as_vlm_text_with_a_rendered_crop_and_never_spot_checked():
+    alg = Block(
+        id="p000-b000",
+        index=0,
+        type="algorithm",
+        page_idx=0,
+        bbox=(100, 100, 900, 500),
+        spans=(Span("equation_inline", "q ="), Span("text", " Order quantity")),
+        captions=(Span("text", "TABLE 9.9 Key notation"),),
+    )
+    paras = [_matter(i, "paragraph", f"body text {i}") for i in range(1, 5)]
+    r = build(META, GUARD, [alg, *paras], MIDDLE, 1_788_000_000.0, lambda b: f"crops/{b.id}.png")
+    assert r["flagged_blocks"] == [
+        {
+            "id": "p000-b000",
+            "type": "text",
+            "crop": "crops/p000-b000.png",
+            "reason": "vlm_generated",
+        },
+    ]
+    spot = {s["id"] for s in r["spot_check"]}
+    assert len(spot) == 3 and "p000-b000" not in spot
+    assert r["counts"] == {"blocks": 5, "tables": 0, "formulas": 0, "figures": 0, "diff_hunks": 1}

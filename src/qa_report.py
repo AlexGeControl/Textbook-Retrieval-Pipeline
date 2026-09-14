@@ -20,6 +20,7 @@ from src.blocks import (
     RUNNING_MATTER,
     SCHEMA_TYPE,
     TEXT_BEARING,
+    VLM_TRANSCRIBED,
     Block,
     load_blocks,
     v2_path,
@@ -31,7 +32,9 @@ from src.qa_schema import SchemaError, validate
 
 SPOT_FRACTION = 0.05
 SPOT_MIN = 3
-BODY_TEXT = TEXT_BEARING - RUNNING_MATTER  # spot-check candidates
+# Spot-check candidates: running text nobody else looks at. Running matter has its own flag and
+# VLM-transcribed bodies are flagged already, so the flagged and sampled sets stay disjoint.
+BODY_TEXT = TEXT_BEARING - RUNNING_MATTER - VLM_TRANSCRIBED
 _FOLIO = re.compile(r"^(page\s+)?[0-9]+$|^[ivxlc]+$", re.IGNORECASE)  # `Page 81`: ops
 _RUNNING_HEAD = re.compile(r"^(chapter|part)\b", re.IGNORECASE)
 
