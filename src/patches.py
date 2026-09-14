@@ -83,8 +83,9 @@ def target_text(block: Block, op: str) -> str:
         return "".join(s.content for s in block.spans if s.type == "text")
     if block.type == "equation_interline":
         return block.math
-    if block.type == "table":
-        return block.html
+    if block.type == "table":  # HTML first; the caption spans follow (clipped captions, ops ch03)
+        caption = "".join(s.content for s in block.captions if s.type == "text")
+        return f"{block.html}\n{caption}" if caption else block.html
     if block.type in CAPTIONED:
         return "".join(s.content for s in block.captions if s.type == "text")
     raise PatchError(f"{block.id}: no text a {op} can target on a {block.type}")
@@ -168,8 +169,11 @@ def _replace_text(b: Block, old: str, new: str) -> Block:
     if b.type == "equation_interline":
         return replace(b, math=b.math.replace(old, new, 1))
     if b.type == "table":
-        return replace(b, html=b.html.replace(old, new, 1))
-    field = _span_field(b)
+        if old in b.html:
+            return replace(b, html=b.html.replace(old, new, 1))
+        field = "captions"
+    else:
+        field = _span_field(b)
     spans = list(getattr(b, field))
     for i, s in enumerate(spans):
         if s.type == "text" and old in s.content:

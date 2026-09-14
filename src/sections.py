@@ -4,8 +4,9 @@ Anchors: (1) a run of up to four consecutive text-bearing blocks whose folded te
 section title, number+title or title+number — exact case preferred, then `title` type, then
 the shorter run; running-matter suspects count (acct types a section title `page_header`);
 (2) the section's first toc_subtree child printed on the same page; (3) for the first section
-on the chapter's first page, the first body block after the chapter title. Anything else fails
-naming the section and page: fix the outline with config/books.yaml toc.patches and re-split.
+on the chapter's first page, the first body block after the chapter title (matched by text, or
+typed level 1). Anything else fails naming the section and page: fix the outline with
+config/books.yaml toc.patches and re-split.
 """
 
 from __future__ import annotations
@@ -20,7 +21,6 @@ MAX_RUN = 4
 BODY_TYPES = frozenset(
     {"paragraph", "list", "title", "page_aside_text", "page_header", "page_footer", "algorithm"}
 )
-
 _DEF = re.compile(r"^\s*<sup>\s*(\d+)\s*</sup>")
 _REF = re.compile(r"<sup>\s*(\d+)\s*</sup>")
 _STAR = re.compile(r"^\s*[*†‡]")
@@ -149,10 +149,13 @@ def _first_child(meta: dict, entry: dict) -> tuple[str, int] | None:
     return None
 
 
-def _after_chapter_title(page: list[Block]) -> Block | None:
+def _after_chapter_title(page: list[Block], chapter_title: str) -> Block | None:
+    """First body block after the chapter title: matched by folded text (MinerU's title
+    `level` is not stable: ops ch03 typed the chapter title 1, ch11 typed it 2), else by level 1."""
+    forms = heading_forms(chapter_title, None)
     seen_title = False
     for b in page:
-        if b.type == "title" and b.level == 1:
+        if b.type == "title" and (fold(clean_title(b.text())) in forms or b.level == 1):
             seen_title = True
             continue
         if seen_title and b.type in TEXT_BEARING and b.text().strip():
@@ -177,7 +180,7 @@ def resolve(meta: dict, pages: list[list[Block]]) -> list[Section]:
             if child is not None and child[1] == pi:
                 hit, rule = find_heading(pages[pi], child[0], None), "first_child"
         if hit is None and k == 1 and pi == 0:
-            start = _after_chapter_title(pages[0])
+            start = _after_chapter_title(pages[0], meta["title"])
             if start is not None:
                 sections.append(Section(k, number, title, pi, start.id, (), "chapter_start"))
                 continue

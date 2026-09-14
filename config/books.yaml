@@ -67,7 +67,14 @@ books:
     body_range: {begin: 7, end: 1284}
     # Reflowed e-book: no printed page numbers per PDF page (the original book's breaks appear
     # inline as "Page N" markers). page_offset 0 = report PDF 1-based pages as printed pages.
-    toc: {source: outline, chapter_level: 1, chapter_pattern: '^Chapter (\d+):', page_offset: 0}
+    toc:
+      source: outline
+      chapter_level: 1
+      chapter_pattern: '^Chapter (\d+):'
+      page_offset: 0
+      # The publisher's bookmark reorders the printed heading of 3.2 (2026-09-14, stage-5 anchor rule).
+      patches:
+        - {rule: rename, level: 2, match: '^3\.2 Bottleneck, Process Capacity, and Flow Rate \(Throughput\)$', replace: '3.2 Process Capacity, Bottleneck, and Flow Rate (Throughput)'}
     chapter_ranges: {}
     routing: {inline_formula: true}
 

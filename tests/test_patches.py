@@ -179,3 +179,46 @@ def test_algorithm_body_is_patchable_like_running_text():
     (out,) = apply([alg], [_p(block=alg.id, old=" - ", new=" − ")])
     assert out.text() == " Order quantity − Back order"
     assert out.caption_text() == "TABLE 9.9" and out.inline_math() == ("q =",)
+
+
+def _table(id_, html, caption):
+    return Block(
+        id=id_,
+        index=int(id_[-3:]),
+        type="table",
+        page_idx=int(id_[1:4]),
+        bbox=(0, 0, 1, 1),
+        html=html,
+        captions=(Span("text", caption),),
+    )
+
+
+def test_replace_reaches_a_table_caption_when_old_is_not_in_the_html():
+    # ops ch03 p026-b003: the caption is clipped at the e-book edge; the HTML never held it.
+    t = _table(
+        "p026-b003", "<table><tr><td>Confirmation</td></tr></table>", "TABLE 3.6 Multiproduct Ca"
+    )
+    assert (
+        target_text(t, "replace")
+        == "<table><tr><td>Confirmation</td></tr></table>\nTABLE 3.6 Multiproduct Ca"
+    )
+    cap = _p(
+        id="rv-0001",
+        block="p026-b003",
+        old="Multiproduct Ca",
+        new="Multiproduct Cas",
+        source="review",
+        rule="manual",
+    )
+    validate(cap, {t.id: t})
+    (out,) = apply([t], [cap])
+    assert out.html == t.html
+    assert out.captions[0].content == "TABLE 3.6 Multiproduct Cas"
+    cell = Patch(
+        **{**cap.__dict__, "id": "rv-0002", "old": "Confirmation", "new": "Confirmation letter"}
+    )
+    (out,) = apply([t], [cell])
+    assert out.html == "<table><tr><td>Confirmation letter</td></tr></table>"
+    assert out.captions == t.captions
+    with pytest.raises(PatchError, match="occurs 0 times"):
+        validate(Patch(**{**cap.__dict__, "id": "rv-0003", "old": "absent"}), {t.id: t})

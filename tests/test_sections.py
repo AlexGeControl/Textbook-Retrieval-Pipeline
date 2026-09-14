@@ -188,6 +188,20 @@ def test_resolve_first_child_and_chapter_start_rules():
     assert secs[0].blocks == []
 
 
+def test_chapter_start_matches_the_chapter_title_by_text_not_by_level():
+    # ops ch11: MinerU typed the chapter title `level: 2`; the anchor is the title text.
+    meta = _meta([_sec(None, "Introduction", 0)], pages=1, title="Scheduling to Prioritize Demand")
+    pages = [
+        [
+            _b("p000-b000", "title", "Scheduling to Prioritize Demand", 2),
+            _b("p000-b001", "paragraph", "intro text"),
+            _b("p000-b005", "page_header", "CHAPTER 11"),
+        ]
+    ]
+    secs = resolve(meta, pages)
+    assert (secs[1].rule, secs[1].anchor) == ("chapter_start", "p000-b001")
+
+
 def test_chapter_start_requires_a_chapter_title():
     meta = _meta([_sec(None, "Introduction", 0)], pages=1)
     with pytest.raises(SectionError, match="Introduction.*pdf page 149"):
