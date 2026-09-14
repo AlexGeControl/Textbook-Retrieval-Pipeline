@@ -16,10 +16,10 @@ from pathlib import Path
 import pymupdf
 
 from src import patches as patchmod
-from src.blocks import Block, load_blocks, v2_path
+from src.blocks import Block, load_blocks, on_page, v2_path
 from src.config import ConfigError, book_cfg, chapter_number, work_dir
 from src.extract import STEM, hybrid_auto_dir
-from src.qa_report import render_crop
+from src.qa_report import render_bbox, render_crop
 from src.qa_schema import (
     BLOCK_VERDICTS,
     CHECK_KEYS,
@@ -133,14 +133,47 @@ class Chapter:
         raise ReviewError(f"{block_id} is not a spot-check block")
 
     def crop_path(self, block_id: str) -> Path:
+        """Mineru's crop for a flagged or sampled block; any other block is rendered on demand."""
         for f in (*self.report["flagged_blocks"], *self.report["spot_check"]):
             if f["id"] == block_id:
                 crop = f["crop"]
                 if crop.endswith("/"):  # a pre-fix stage-4 entry (bare "images/"): render the bbox
-                    with pymupdf.open(self.wd / "chapter.pdf") as doc:
-                        crop = render_crop(doc, self.by_id[block_id], self.wd)
+                    crop = self._render_block(block_id)
                 return (self.hybrid_auto / crop) if crop.startswith("images/") else (self.wd / crop)
-        raise ReviewError(f"{block_id} has no crop in qa_report.json (not flagged, not sampled)")
+        if block_id not in self.by_id:
+            raise ReviewError(f"{block_id} is not a block of this chapter")
+        return self.wd / self._render_block(block_id)
+
+    def _render_block(self, block_id: str) -> str:
+        with pymupdf.open(self.wd / "chapter.pdf") as doc:
+            return render_crop(doc, self.by_id[block_id], self.wd)
+
+    def hunk_anchor(self, index: int) -> Block:
+        hunks = self.report["diff_hunks"]
+        if not 0 <= index < len(hunks):
+            raise ReviewError(f"hunk {index} out of range 0..{len(hunks) - 1}")
+        return self.by_id[hunks[index]["anchor"]]
+
+    def hunk_context_bbox(self, index: int) -> list[int]:
+        """The anchor block with its previous and next block on the page, as one bbox."""
+        anchor = self.hunk_anchor(index)
+        page = on_page(self.blocks, anchor.page_idx)
+        i = page.index(anchor)
+        strip = page[max(i - 1, 0) : i + 2]
+        return [
+            min(b.bbox[0] for b in strip),
+            min(b.bbox[1] for b in strip),
+            max(b.bbox[2] for b in strip),
+            max(b.bbox[3] for b in strip),
+        ]
+
+    def hunk_crop_path(self, index: int) -> Path:
+        anchor = self.hunk_anchor(index)
+        with pymupdf.open(self.wd / "chapter.pdf") as doc:
+            crop = render_bbox(
+                doc, anchor.page_idx, self.hunk_context_bbox(index), self.wd, f"hunk-{index:03d}"
+            )
+        return self.wd / crop
 
     def known_patches(self, ids: list[str] | None) -> list[str]:
         have = {p.id for p in self.patches}
@@ -161,7 +194,7 @@ def cmd_start(ch: Chapter, args) -> None:
 
 
 def cmd_crop(ch: Chapter, args) -> None:
-    path = ch.crop_path(args.id)
+    path = ch.hunk_crop_path(args.hunk) if args.hunk is not None else ch.crop_path(args.id)
     if not path.exists():
         raise ReviewError(f"{path} missing")
     ch.review["effort"]["crops_opened"] += 1
@@ -324,7 +357,11 @@ def build_parser() -> argparse.ArgumentParser:
     p.set_defaults(func=cmd_start)
     p = sub.add_parser("crop", help="print a crop path and count it as opened")
     common(p)
-    p.add_argument("--id", required=True)
+    g = p.add_mutually_exclusive_group(required=True)
+    g.add_argument("--id", help="any block of the chapter")
+    g.add_argument(
+        "--hunk", type=int, help="diff_hunks index: its anchor block with its page neighbours"
+    )
     p.set_defaults(func=cmd_crop)
     p = sub.add_parser("hunk")
     common(p)

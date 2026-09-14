@@ -246,9 +246,10 @@ Invoked as `/chapter-review <book> <chapter>` in a Claude Code session. Steps, i
    `review.unresolved` and stop; never push.
 
 The skill also states what the reviewer may open — crops referenced by `flagged_blocks` and
-`spot_check`, hunk contexts in the report — and forbids `chapter.md`, `chapter.pdf` pages,
-files outside the chapter's work dir, and editing `qa_report.json` or `patches.json` with a
-text tool. Effort: `crops_opened` and `patches` are counted by the CLI; tokens are not visible
+`spot_check`, a crop of any other block or of a hunk's anchor with its page neighbours rendered
+on demand by `review crop` (Amendment 11), hunk contexts in the report — and forbids
+`chapter.md`, `chapter.pdf` pages, files outside the chapter's work dir, and editing
+`qa_report.json` or `patches.json` with a text tool. Effort: `crops_opened` and `patches` are counted by the CLI; tokens are not visible
 to the agent and are recorded by the operator from `/cost` per session and from the workflow
 report where it exposes them.
 
@@ -681,3 +682,18 @@ amends the section it names; the plan implements the amended form.
     references inside the box are scanned. `blocks.py` no longer raises on it; §12 still holds
     for `code` and `index`. See the stages 1–4 design Amendments and
     `docs/plans/2026-09-14-algorithm-block-plan.md`.
+11. **§8, §11 — crops for `needs_eyes` hunks (2026-09-14).** Step 4 already asked tier B to open a
+    crop per `needs_eyes` hunk, but `review crop --id` served only `flagged_blocks` and
+    `spot_check`; the ops ch04 review left ten hunks `unresolved` for want of evidence (stacked
+    fractions the text layer reads out of order, a sub-question list mineru folded into a table's
+    footnote spans below the table's own crop). `review crop --id` now renders any block of the
+    chapter from its bbox on demand (`crops/<id>.png`); `review crop --hunk <i>` renders the
+    anchor block of `diff_hunks[i]` unioned with its previous and next block on the same page
+    (`crops/hunk-NNN.png`), so content that spilled just outside the anchor is visible. Both count
+    in `effort.crops_opened`. Reviewer discipline is unchanged: a crop of running text is evidence
+    for a `replace` or `accepted_md`, never for a `set_*` body op. Two `set_inline_math` limits
+    surfaced by the same chapter are lifted: it reaches a table's caption/footnote spans (the
+    only place a table holds inline math; mineru folded Q4.1's sub-questions there), and an
+    exactly empty `new` removes the matching span(s) — an MFR span with no formula behind it (a
+    subscript the text already carries, a hyperlink icon read as `\sum`). Whitespace-only `new`
+    is still refused.

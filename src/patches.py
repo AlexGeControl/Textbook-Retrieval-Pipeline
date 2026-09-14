@@ -99,6 +99,15 @@ def _span_field(block: Block) -> str | None:
     return None
 
 
+def _inline_field(block: Block) -> str | None:
+    """Where a block's equation_inline spans live; a table's are in its caption/footnote spans."""
+    if block.type in TEXT_BEARING:
+        return "spans"
+    if block.type in CAPTIONED:
+        return "captions"
+    return None
+
+
 def validate(patch: Patch, blocks: dict[str, Block]) -> None:
     if patch.op not in OPS:
         raise PatchError(f"{patch.id}: unknown op {patch.op!r}")
@@ -122,10 +131,11 @@ def validate(patch: Patch, blocks: dict[str, Block]) -> None:
         # and 29): `old` is the exact LaTeX of an equation_inline span of the block. The MFR
         # mis-reads a symbol the same way wherever it occurs (bkm ch23 p003-b003: E_1 twice as
         # E_{\uparrow}), so every span equal to `old` is rewritten; identical old and identical
-        # new leave nothing ambiguous.
-        if _span_field(block) is None:
+        # new leave nothing ambiguous. An exactly empty `new` removes the span: an MFR artefact
+        # with no formula behind it (ops ch04: a subscript the text carries, a hyperlink icon).
+        if _inline_field(block) is None:
             raise PatchError(f"{patch.id}: set_inline_math on a {block.type}")
-        if not patch.new.strip():
+        if patch.new != "" and not patch.new.strip():
             raise PatchError(f"{patch.id}: set_inline_math needs a non-empty new")
         n = sum(
             1
@@ -156,12 +166,14 @@ def _all_spans(block: Block) -> tuple[Span, ...]:
 
 
 def _set_inline_math(b: Block, old: str, new: str) -> Block:
-    """Rewrite every equation_inline span equal to `old` (validate guarantees at least one)."""
-    field = _span_field(b)
-    spans = [
-        Span("equation_inline", new) if sp.type == "equation_inline" and sp.content == old else sp
-        for sp in getattr(b, field)
-    ]
+    """Rewrite, or remove when `new` is empty, every equation_inline span equal to `old`."""
+    field = _inline_field(b)
+    spans = []
+    for sp in getattr(b, field):
+        if sp.type != "equation_inline" or sp.content != old:
+            spans.append(sp)
+        elif new:
+            spans.append(Span("equation_inline", new))
     return replace(b, **{field: tuple(spans)})
 
 

@@ -109,6 +109,53 @@ def test_set_inline_math_rewrites_exactly_one_equation_inline_span():
         validate(_p(id="rv-0004", source="review", op="set_inline_math", old="C_0", new=" "), BY_ID)
 
 
+def test_set_inline_math_with_an_empty_new_removes_the_span():
+    # ops ch04 p013-b006: the MFR emitted a span for a subscript the text already carries.
+    rv = _p(id="rv-0001", source="review", op="set_inline_math", old="C_0", new="")
+    validate(rv, BY_ID)
+    (out, *_) = apply(BLOCKS, [rv])
+    assert out.spans == (Span("text", "the capi tal budget "), Span("text", " here"))
+    assert out.inline_math() == ()
+    with pytest.raises(PatchError, match="occurs 0 times"):
+        validate(_p(id="rv-0002", source="review", op="set_inline_math", old="nope", new=""), BY_ID)
+
+
+Q41 = Block(
+    id="p034-b004",
+    index=4,
+    type="table",
+    page_idx=34,
+    bbox=(0, 0, 1, 1),
+    html="<table><tr><td>Resource</td></tr></table>",
+    captions=(
+        Span("text", "b. What is the average labor content? "),
+        Span("equation_inline", "[ \\sum 4 . 3 ]"),
+        Span("text", "c. What is the average labor utilization? "),
+        Span("equation_inline", "[ [ \\sum 4 . 3 ]"),
+    ),
+)
+
+
+def test_set_inline_math_reaches_a_table_footnote_span():
+    # ops ch04 p034-b004: sub-questions folded into table_footnote, link icons MFR-read as \sum.
+    rewrite = _p(
+        id="rv-0001",
+        block=Q41.id,
+        op="set_inline_math",
+        old="[ \\sum 4 . 3 ]",
+        new="[4.3]",
+        source="review",
+        rule="manual",
+    )
+    (out,) = apply([Q41], [rewrite])
+    assert out.html == Q41.html
+    assert out.captions[1] == Span("equation_inline", "[4.3]")
+    assert out.captions[3] == Q41.captions[3]
+    remove = Patch(**{**rewrite.__dict__, "id": "rv-0002", "new": ""})
+    (out,) = apply([Q41], [remove])
+    assert out.captions == (Q41.captions[0], Q41.captions[2], Q41.captions[3])
+
+
 def test_id_prefix_must_match_source():
     with pytest.raises(PatchError, match="prefix"):
         validate(_p(id="rv-0001"), BY_ID)

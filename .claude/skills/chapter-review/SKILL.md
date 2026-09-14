@@ -16,8 +16,11 @@ targets are the composite entry points (`make -n <target> BOOK=B CH=N` shows wha
 ## What you may open
 
 - `work/B/chNN/qa_report.json` (the `review` key is your worklist) and `patches.json`.
-- Crops, only through `uv run python -m src.review crop --id <block> --book B --chapter N`,
-  which prints the path and counts the open. Read the printed file with the Read tool.
+- Crops, only through `uv run python -m src.review crop --id <block> --book B --chapter N`
+  (any block of the chapter; an unflagged block is rendered from its bbox on demand) or
+  `crop --hunk <i>` (the hunk's anchor block with its previous and next block on the page, for
+  content the anchor's own bbox does not cover). Both print the path and count the open. Read
+  the printed file with the Read tool.
 - The block bodies, only through the one-liners in the rubrics (they read patches-applied
   blocks via `src.review.Chapter`).
 - Nothing else. Not `chapter.md`, not `chapter.pdf`, not `hybrid_auto/*.json`, not other
@@ -49,8 +52,9 @@ targets are the composite entry points (`make -n <target> BOOK=B CH=N` shows wha
    discrepancies AND (`checks.textlayer_match` is true or null, or every spotlight token was
    resolved as an artefact in the agent's `discrepancies` with `resolution: artefact`).
 5. **Tier B (you).** Open the crop yourself for: every block not verified in step 4, every
-   `unresolved` hunk, every `headings.missing` entry, every `footnotes.unmatched` entry, and
-   every spot check the agent did not clear. Decide, then write:
+   `unresolved` hunk (`crop --hunk i`, or `crop --id` on the block you will patch), every
+   `headings.missing` entry, every `footnotes.unmatched` entry, and every spot check the agent
+   did not clear. Decide, then write:
    - hunks: `review hunk --index i --verdict accepted_pdf|accepted_md|move|dropped|patched
      --rule manual --patch <ids> --note "…"`, with a `review patch --block … --op replace
      --old … --new … --hunk i` first when text changes. `accepted_md` is for a defective text
@@ -62,7 +66,10 @@ targets are the composite entry points (`make -n <target> BOOK=B CH=N` shows wha
    - inline formulas (MFR output inside a text block): `review patch --block … --op
      set_inline_math --old "<exact current LaTeX of that span>" --new "<corrected LaTeX>" --hunk i`
      (every span of the block with that exact LaTeX is rewritten: one patch covers a repeated misread),
-     then the hunk verdict `patched`. A footnote marker the MFR swallowed into the LaTeX goes
+     then the hunk verdict `patched`. `--new ""` removes the span instead — for an MFR artefact
+     with no formula behind it (a subscript the text already carries, a hyperlink icon), never
+     for a formula you cannot read. A table's caption/footnote spans are reached the same way.
+     A footnote marker the MFR swallowed into the LaTeX goes
      back into the following text span with a `replace` (`--new "<sup>n</sup> …"`).
    - headings: `review heading --title "…" --verdict found_as --block <id>` or
      `--verdict not_a_heading --note "boxed feature"`.

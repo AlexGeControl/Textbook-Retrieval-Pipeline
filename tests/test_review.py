@@ -2,6 +2,7 @@ import json
 import subprocess
 import sys
 
+import pymupdf
 import pytest
 
 from src.qa_schema import SchemaError, validate_review
@@ -115,6 +116,53 @@ def test_crop_path_resolves_images_and_crops(wd):
         ch.crop_path("p000-b099")
 
 
+PARA2 = {
+    "type": "paragraph",
+    "bbox": [100, 300, 700, 400],
+    "content": {"paragraph_content": [{"type": "text", "content": "neither flagged nor sampled"}]},
+}
+
+
+def test_crop_path_renders_any_block_in_the_content_list(tmp_path, monkeypatch):
+    wd = make_work_dir(
+        tmp_path,
+        monkeypatch,
+        pages=[[PARA, EQ, PARA2]],
+        hunks=[HUNK],
+        flagged=[FLAG],
+        spot=[SPOT],
+        pdf_lines=["the capital budget"],
+    )
+    ch = Chapter("bma", 5)
+    path = ch.crop_path("p000-b002")
+    assert path == wd / "crops/p000-b002.png"
+    pix = pymupdf.Pixmap(str(path))
+    assert (pix.width, pix.height) == (1200, 200)  # (700-100, 400-300) at zoom 2
+
+
+@pytest.mark.parametrize(
+    "anchor, expected",
+    [
+        ("p000-b000", [80, 80, 600, 260]),  # first block: anchor + next
+        ("p000-b001", [80, 80, 700, 400]),  # middle: previous + anchor + next
+        ("p000-b002", [80, 200, 700, 400]),  # last block: previous + anchor
+    ],
+)
+def test_hunk_context_bbox_unions_the_anchor_with_its_page_neighbours(
+    tmp_path, monkeypatch, anchor, expected
+):
+    make_work_dir(
+        tmp_path,
+        monkeypatch,
+        pages=[[PARA, EQ, PARA2], [PARA]],  # the second page must not leak into the strip
+        hunks=[{**HUNK, "anchor": anchor}],
+        flagged=[FLAG],
+        spot=[SPOT],
+        pdf_lines=["the capital budget", "the capital budget"],
+    )
+    assert Chapter("bma", 5).hunk_context_bbox(0) == expected
+
+
 def _cli(*args):
     return subprocess.run(
         [sys.executable, "-m", "src.review", *args, "--book", "bma", "--chapter", "5"],
@@ -188,6 +236,20 @@ def test_cli_crop_prints_path_and_counts(wd):
     r = _cli("crop", "--id", "p000-b001")
     assert r.returncode == 0 and r.stdout.strip().endswith("images/eq.jpg")
     assert json.loads((wd / "qa_report.json").read_text())["review"]["effort"]["crops_opened"] == 1
+
+
+def test_cli_crop_hunk_renders_the_context_strip_and_counts(wd):
+    r = _cli("crop", "--hunk", "0")
+    assert r.returncode == 0, r.stderr
+    assert r.stdout.strip() == str(wd / "crops/hunk-000.png")
+    pix = pymupdf.Pixmap(str(wd / "crops/hunk-000.png"))
+    assert (pix.width, pix.height) == (1040, 360)  # union of PARA and EQ bboxes at zoom 2
+    assert json.loads((wd / "qa_report.json").read_text())["review"]["effort"]["crops_opened"] == 1
+
+
+def test_cli_crop_takes_exactly_one_of_id_or_hunk(wd):
+    assert _cli("crop").returncode == 2
+    assert _cli("crop", "--id", "p000-b001", "--hunk", "0").returncode == 2
 
 
 EMPTY_TABLE = {
