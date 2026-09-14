@@ -81,11 +81,12 @@ def pdf_tokens(text: str) -> list[Tok]:
 def block_text(block: Block) -> str:
     """md-side text: body spans of a text-bearing block, caption spans of a captioned one.
 
-    Inline-math spans are flattened to their glyphs. Spans are joined with a space because
-    mineru puts none between a formula and the text that follows it.
+    An `algorithm` block carries both: its text-layer caption precedes its VLM-written body, in
+    reading order. Inline-math spans are flattened to their glyphs. Spans are joined with a
+    space because mineru puts none between a formula and the text that follows it.
     """
     if block.type in TEXT_BEARING:
-        spans = block.spans
+        spans = (*block.captions, *block.spans)
     elif block.type in CAPTIONED:
         spans = block.captions
     else:
