@@ -674,3 +674,10 @@ amends the section it names; the plan implements the amended form.
 9. **§3 facts.** PyMuPDF `rawdict` span flag bit 0 marks the footnote superscripts (bma page 4:
    `1`); omitting TEXT_PRESERVE_LIGATURES expands ops's two `ﬀ`; stats carries 267 soft-hyphen
    characters in `rawdict`; 46 of 61 footnote blocks open with `<sup>n</sup>`.
+10. **§7, §9, §12 — `algorithm` blocks (2026-09-14).** A `text`-typed `vlm_generated` block gets
+    no mechanical block check; the guardrail hunks anchored to it are its tier-A spotlights and
+    `rubric-text.md` applies. It renders as a `> [!abstract] <caption>` callout with one quoted
+    line per printed row and inline math as `$…$`; `BODY_TYPES` includes it so footnote
+    references inside the box are scanned. `blocks.py` no longer raises on it; §12 still holds
+    for `code` and `index`. See the stages 1–4 design Amendments and
+    `docs/plans/2026-09-14-algorithm-block-plan.md`.

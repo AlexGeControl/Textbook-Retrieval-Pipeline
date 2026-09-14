@@ -82,7 +82,7 @@ box whose text layer is complete.
 - Produces: `VLM_TRANSCRIBED: frozenset[str]`; `"algorithm" in TEXT_BEARING`;
   `SCHEMA_TYPE["algorithm"] == "text"`; `Block(type="algorithm", spans=…, captions=…)`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 In `tests/test_blocks.py` add `VLM_TRANSCRIBED` to the `from src.blocks import (…)` list, add
 the constant and test below after `test_image_is_vlm_generated_only_when_it_carries_content`,
@@ -123,12 +123,12 @@ def test_type_classes_partition_the_v2_vocabulary():
     assert CAPTIONED == FIGURES | {"table"}
 ```
 
-- [ ] **Step 2: Run to verify they fail**
+- [x] **Step 2: Run to verify they fail**
 
 Run: `uv run pytest tests/test_blocks.py -q`
 Expected: collection error `ImportError: cannot import name 'VLM_TRANSCRIBED'`.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 In `src/blocks.py`:
 
@@ -180,12 +180,12 @@ In `_block`, after the `RUNNING_MATTER`/footnote/aside branch and before `crop =
         )
 ```
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 Run: `uv run pytest tests/test_blocks.py -q`
 Expected: all pass, including `test_unsupported_type_fails_loudly` (still `code`).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 uv run pytest -q && uv run ruff check . && uv run ruff format --check .
@@ -205,7 +205,7 @@ git commit -m "blocks: load mineru's algorithm block as VLM-transcribed text wit
 - Consumes: `Block` with both `captions` and `spans` (Task 1).
 - Produces: `block_text(algorithm) == "<caption> <flattened body>"`; `block_masks` unchanged.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Ensure `block_masks` is in the `from src.guardrail import (…)` list, then add:
 
@@ -226,17 +226,27 @@ def test_algorithm_block_aligns_its_caption_and_vlm_body_and_is_not_masked():
         captions=(Span("text", "TABLE 9.9 Key notation"),),
     )
     assert block_text(alg) == "TABLE 9.9 Key notation q=  Order quantity  \n  h=  Holding cost"
-    toks = [t.text for t in block_tokens(alg)]
-    assert toks == "TABLE 9.9 Key notation q= Order quantity h= Holding cost".split()
+    assert [t.text for t in block_tokens(alg)] == [
+        "TABLE",
+        "9.9",
+        "Key",
+        "notation",
+        "q=",
+        "Order",
+        "quantity",
+        "h=",
+        "Holding",
+        "cost",
+    ]
     assert block_masks([alg], pymupdf.Rect(0, 0, 1000, 1000)) == []
 ```
 
-- [ ] **Step 2: Run to verify it fails**
+- [x] **Step 2: Run to verify it fails**
 
 Run: `uv run pytest tests/test_guardrail.py -q -k algorithm`
 Expected: FAIL — `block_text` returns the body only (`"q=  Order quantity …"`).
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```python
 def block_text(block: Block) -> str:
@@ -257,12 +267,12 @@ def block_text(block: Block) -> str:
     )
 ```
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 Run: `uv run pytest tests/test_guardrail.py -q`
 Expected: PASS (other text-bearing blocks have empty `captions`, so nothing else changes).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 uv run pytest -q && uv run ruff check . && uv run ruff format --check .
@@ -282,7 +292,7 @@ git commit -m "guardrail: align an algorithm block's caption and body; never mas
 - Consumes: `VLM_TRANSCRIBED`, `SCHEMA_TYPE["algorithm"]`, `Block.is_vlm_generated()` (Task 1).
 - Produces: a flagged entry `{id, type: "text", crop: "crops/<id>.png", reason: "vlm_generated"}`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 def test_algorithm_is_flagged_as_vlm_text_with_a_rendered_crop_and_never_spot_checked():
@@ -310,14 +320,14 @@ def test_algorithm_is_flagged_as_vlm_text_with_a_rendered_crop_and_never_spot_ch
     assert r["counts"] == {"blocks": 5, "tables": 0, "formulas": 0, "figures": 0, "diff_hunks": 1}
 ```
 
-- [ ] **Step 2: Run to verify it fails**
+- [x] **Step 2: Run to verify it fails**
 
 Run: `uv run pytest tests/test_qa_report.py -q -k algorithm`
 Expected: FAIL on the spot-check assertion — the algorithm block is a `BODY_TEXT` candidate and
 the seeded sample of 3 from 5 may include it (the flagged assertion already passes via Task 1).
 If the seed happens to skip it, the test still documents the invariant; proceed.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Add `VLM_TRANSCRIBED` to the `from src.blocks import (…)` list and change:
 
@@ -327,12 +337,12 @@ Add `VLM_TRANSCRIBED` to the `from src.blocks import (…)` list and change:
 BODY_TEXT = TEXT_BEARING - RUNNING_MATTER - VLM_TRANSCRIBED
 ```
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 Run: `uv run pytest tests/test_qa_report.py -q`
 Expected: PASS; `validate(report)` inside `build` accepts `type: text` + `reason: vlm_generated`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 uv run pytest -q && uv run ruff check . && uv run ruff format --check .
@@ -353,7 +363,7 @@ git commit -m "qa_report: flag algorithm blocks as text/vlm_generated, outside t
 - Consumes: `inline`, `md_text`, `strip_ornament`, `_caption_parts` (existing in `render.py`).
 - Produces: `algorithm_callout(block: Block, ctx: Context) -> str`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `tests/test_render.py`:
 
@@ -388,12 +398,12 @@ def test_body_types_are_the_text_bearing_types_less_footnotes_and_folios():
     assert BODY_TYPES == TEXT_BEARING - {"page_footnote", "page_number"}
 ```
 
-- [ ] **Step 2: Run to verify they fail**
+- [x] **Step 2: Run to verify they fail**
 
 Run: `uv run pytest tests/test_render.py tests/test_sections.py -q -k "algorithm or body_types"`
 Expected: `ImportError` for `algorithm_callout`; `BODY_TYPES` assertion fails (`algorithm` missing).
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 `src/render.py`, after `aside_callout`:
 
@@ -430,12 +440,12 @@ BODY_TYPES = frozenset(
 )
 ```
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 Run: `uv run pytest tests/test_render.py tests/test_sections.py tests/test_review_checks.py -q`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 uv run pytest -q && uv run ruff check . && uv run ruff format --check .
@@ -455,7 +465,7 @@ tests pin that down; the skill tells the reviewer what a `text`-typed `vlm_gener
 - Modify: `.claude/skills/chapter-review/SKILL.md` (step 3 rubric list; rules section),
   `.claude/skills/chapter-review/rubric-text.md` (title, `note` vocabulary)
 
-- [ ] **Step 1: Write the tests (expected to pass already)**
+- [x] **Step 1: Write the tests (expected to pass already)**
 
 `tests/test_patches.py`:
 
@@ -510,14 +520,14 @@ def test_algorithm_anchor_is_classified_like_running_text(tmp_path, monkeypatch)
     )
 ```
 
-- [ ] **Step 2: Run them**
+- [x] **Step 2: Run them**
 
 Run: `uv run pytest tests/test_patches.py tests/test_prepass.py -q -k algorithm`
 Expected: PASS. If the pre-pass test yields a different rule, read `Prepass._classify` before
 changing the assertion: the invariant that matters is no `masking gap` note and a `replace` on
 the algorithm block.
 
-- [ ] **Step 3: Amend the skill**
+- [x] **Step 3: Amend the skill**
 
 `SKILL.md` step 3: replace `` `rubric-text.md` for `running_matter_suspect` and spot checks) ``
 with `` `rubric-text.md` for `running_matter_suspect`, spot checks and `text`-typed
@@ -533,7 +543,7 @@ the "Text layer wins on running text" bullet add:
 `rubric-text.md`: title → `# Tier A — text block (spot check, running-matter suspect or
 `algorithm` body)`; add `boxed summary` to the `note` vocabulary.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 uv run pytest -q && uv run ruff check . && uv run ruff format --check .
@@ -548,7 +558,7 @@ git commit -m "Stage 5a: algorithm bodies patch and classify as running text; re
 
 **Files:** none in git except the addendum appended to this plan.
 
-- [ ] **Step 1: Run stages 3 and 4 (extraction output already exists; no `FORCE`)**
+- [x] **Step 1: Run stages 3 and 4 (extraction output already exists; no `FORCE`)**
 
 ```bash
 make guardrail BOOK=ops CH=16 && make qa_report BOOK=ops CH=16
@@ -557,7 +567,7 @@ make guardrail BOOK=ops CH=16 && make qa_report BOOK=ops CH=16
 Expected: both exit 0; `work/ops/ch16/guardrail.json`, `qa_report.json` and
 `crops/p054-b001.png` exist.
 
-- [ ] **Step 2: Collect the evidence (counts and ids only)**
+- [x] **Step 2: Collect the evidence (counts and ids only)**
 
 ```bash
 uv run python - <<'EOF'
@@ -580,7 +590,7 @@ Expected: one flagged entry `{id: p054-b001, type: text, crop: crops/p054-b001.p
 vlm_generated}`; at least one hunk anchored to `p054-b001` (the VLM's hyphen for the printed
 minus); `spot-checked: False`.
 
-- [ ] **Step 3: Stage 5a and a render smoke test**
+- [x] **Step 3: Stage 5a and a render smoke test**
 
 ```bash
 make review BOOK=ops CH=16
@@ -602,7 +612,7 @@ Expected: `make review` exits 0 (a failure naming a section anchor is an ops out
 the operator, not this plan — report it); the render prints about 14 lines starting
 `> [!abstract]`.
 
-- [ ] **Step 4: Record**
+- [x] **Step 4: Record**
 
 Append a "Measured 2026-09-14" addendum to this plan with the printed counts (no text).
 
@@ -616,7 +626,7 @@ Append a "Measured 2026-09-14" addendum to this plan with the printed counts (no
 - Modify: `metrics/block-types-2026-09-06.md:41`
 - Modify: `CLAUDE.md` (pointer paragraph after the stage-5 paragraph; the "Text layer wins" rule)
 
-- [ ] **Step 1: Stages 1–4 design**
+- [x] **Step 1: Stages 1–4 design**
 
 Append:
 
@@ -636,7 +646,7 @@ Append:
    decision record: `docs/plans/2026-09-14-algorithm-block-plan.md`.
 ```
 
-- [ ] **Step 2: Stage-5 design Amendments, item 10**
+- [x] **Step 2: Stage-5 design Amendments, item 10**
 
 ```
 10. **§7, §9, §12 — `algorithm` blocks (2026-09-14).** A `text`-typed `vlm_generated` block gets
@@ -648,7 +658,7 @@ Append:
     `docs/plans/2026-09-14-algorithm-block-plan.md`.
 ```
 
-- [ ] **Step 3: Metrics note**
+- [x] **Step 3: Metrics note**
 
 Replace the line `No `code`, `algorithm`, `index` or `phonetic` in this corpus (they would raise
 `BlockError`).` with the same sentence followed by: `Update 2026-09-14: the first `algorithm`
@@ -656,7 +666,7 @@ appeared in ops ch16 (`p054-b001`, a boxed notation summary; 1 of ~11,000 blocks
 chapters) and is supported since `docs/plans/2026-09-14-algorithm-block-plan.md`; `code`, `index`
 and `phonetic` still raise.`
 
-- [ ] **Step 4: CLAUDE.md**
+- [x] **Step 4: CLAUDE.md**
 
 After the stage-5 pointer paragraph add:
 
@@ -680,7 +690,7 @@ text from `git show HEAD:CLAUDE.md`, `diff -u` it against HEAD's copy, `git appl
 patch, and make the same edit in the working copy. Verify with `git diff --cached CLAUDE.md`
 (only the two hunks above) and `git diff CLAUDE.md` (only the operator's hunks).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 uv run pytest -q && uv run ruff check . && uv run ruff format --check .
@@ -691,3 +701,27 @@ git commit -m "Docs: record the algorithm block in both designs, the metrics not
 
 Then `git status --short` must still show the operator's `M CLAUDE.md`, `M Makefile`,
 `M docs/plans/2026-09-07-stage5-plan.md` and the untracked gate-5 files, untouched.
+
+---
+
+## Addendum — Measured 2026-09-14 (Task 6)
+
+Built on `stage-5` in six commits after the plan commit `478a368`; unit tier 252 passed (245
+before), ruff clean. ops ch16, stages 3–4 and 5a, counts only:
+
+| item | value |
+|---|---|
+| guardrail | pdf tokens 16,817, md tokens 16,651, matched blocks 325, unmatched 66, hunks 107 (60 inline-math) |
+| qa_report counts | blocks 457, tables 7, formulas 29, figures 21, diff_hunks 107; status pending_review |
+| flagged | 60: table 7, formula 29, chart 6, figure 1, text 17 (16 running-matter suspects + `p054-b001`) |
+| `p054-b001` | `{type: text, reason: vlm_generated, crop: crops/p054-b001.png}`; 9 hunks anchored to it; not in the 17-block spot sample |
+| pre-pass | 107 hunks: needs_eyes 55, inline_math 27, move 12, same_letters 6, folio 5, duplicate 2 |
+| review-checks | formulas 29 (textlayer 9, parse 29), tables 7 (textlayer 5, rectangular 6, empty 1), subheadings missing 0, footnotes unmatched 0 |
+| render smoke | `p054-b001` → 14 callout lines, every line quoted, `$` pairs balanced |
+
+Deviations from the plan text: Task 2's token assertion is a list literal (ruff SIM905). Task 3's
+RED run did sample the algorithm block into the spot check (`p000-b000/b002/b004`), so the
+`BODY_TEXT` exclusion was necessary, not defensive. Task 4's `sections.py` and `test_sections.py`
+hunks were staged in isolation because a concurrent review session held uncommitted edits in
+both files. Next for the operator: `/chapter-review ops 16`; the 9 hunks on `p054-b001` are the
+VLM's transcription differences, tier B with `replace` / `set_inline_math`.

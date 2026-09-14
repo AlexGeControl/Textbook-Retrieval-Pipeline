@@ -21,6 +21,9 @@ supersedes HANDOVER §6 "Stage 5" and the gate 4–5 details of §7, and built b
 `docs/plans/2026-09-07-stage5-plan.md`; `docs/plans/2026-09-07-stage5-gate5-handover.md` is the
 resume point for Task 13 (gate 5) and Task 14.
 
+The `algorithm` block type (first seen 2026-09-14 in ops ch16) is added by
+`docs/plans/2026-09-14-algorithm-block-plan.md`, whose decision record amends both designs.
+
 ## Stack
 
 - Python managed by `uv`. Always `uv run …` / `uv add …` / `uv sync …`; never
@@ -120,7 +123,10 @@ docs/plans/                design + plan for stages 1–4; addenda record the ga
 ## Hard rules
 
 - Text layer wins. VLM output is used only for blocks typed table, formula
-  or figure. Never let a VLM transcribe running text.
+  or figure. Never let a VLM transcribe running text. The one exception MinerU
+  forces: an `algorithm` body (a boxed notation summary) arrives as VLM text;
+  the guardrail aligns it against the text layer and stage 4 flags it
+  `text`/`vlm_generated`.
 - Review patches, never regenerates. No "rewrite this section" in code,
   prompts or skills.
 - Fail loudly. Missing or wrong PDF outline → error naming book and chapter.
