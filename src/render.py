@@ -289,6 +289,23 @@ def aside_callout(run: list[Block], ctx: Context) -> str:
     return "\n".join([f"> [!info] {lines[0]}", *(f"> {t}" for t in lines[1:])])
 
 
+def algorithm_callout(block: Block, ctx: Context) -> str:
+    """A boxed notation/equation summary mineru typed `algorithm` (ops ch16, TABLE 16.6).
+
+    A callout titled by the caption, one quoted line per printed row, inline math as `$…$`,
+    the footnote last. The body is the VLM's transcription, aligned by the guardrail and
+    patched like any text-bearing block.
+    """
+    cap, foot = _caption_parts(block)
+    lines = [t for t in (ln.strip() for ln in inline(block.spans, ctx).splitlines()) if t]
+    if foot:
+        lines.append(md_text(foot, ctx))
+    if not lines and not cap:
+        return ""
+    head = strip_ornament(md_text(cap, ctx)) if cap else "Summary"
+    return "\n".join([f"> [!abstract] {head}", *(f"> {t}" for t in lines)])
+
+
 def render_block(block: Block, ctx: Context, in_hub: bool = False) -> str:
     if block.id in ctx.dropped:
         return ""
@@ -312,6 +329,8 @@ def render_block(block: Block, ctx: Context, in_hub: bool = False) -> str:
         return figure(block, ctx)
     if block.type == "image":
         return image(block, ctx)
+    if block.type == "algorithm":
+        return algorithm_callout(block, ctx)
     raise RenderError(f"{block.id}: no rendering rule for {block.type}")
 
 

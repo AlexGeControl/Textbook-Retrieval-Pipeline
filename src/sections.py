@@ -18,8 +18,9 @@ from src.fold import clean_title, fold
 
 MAX_RUN = 4
 BODY_TYPES = frozenset(
-    {"paragraph", "list", "title", "page_aside_text", "page_header", "page_footer"}
+    {"paragraph", "list", "title", "page_aside_text", "page_header", "page_footer", "algorithm"}
 )
+
 _DEF = re.compile(r"^\s*<sup>\s*(\d+)\s*</sup>")
 _REF = re.compile(r"<sup>\s*(\d+)\s*</sup>")
 _STAR = re.compile(r"^\s*[*†‡]")

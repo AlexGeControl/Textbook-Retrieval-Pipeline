@@ -405,3 +405,25 @@ def test_escaped_dollar_inside_cell_math_stays_inside():
     from src.render import escape_cell_dollars
 
     assert escape_cell_dollars("( $F_0 = \\$3,965$ )") == "( $F_0 = \\$3,965$ )"
+
+
+def test_algorithm_renders_as_a_callout_titled_by_its_caption():
+    from src.render import algorithm_callout
+
+    b = _b(
+        "p054-b001",
+        "algorithm",
+        ("equation_inline", "q ="),
+        ("text", " Order quantity  \n "),
+        ("equation_inline", "h ="),
+        ("text", " Holding cost per unit, $ per year"),
+        captions=(Span("text", "▶ TABLE 9.9 Summary of Key Notation"),),
+    )
+    expected = (
+        "> [!abstract] TABLE 9.9 Summary of Key Notation\n"
+        "> $q =$ Order quantity\n"
+        "> $h =$ Holding cost per unit, \\$ per year"
+    )
+    assert render_block(b, _ctx()) == expected
+    assert algorithm_callout(b, _ctx()) == expected
+    assert render_block(_b("p054-b002", "algorithm"), _ctx()) == ""

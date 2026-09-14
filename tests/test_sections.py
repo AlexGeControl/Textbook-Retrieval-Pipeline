@@ -1,7 +1,8 @@
 import pytest
 
-from src.blocks import Block, Span, load_pages, v2_path
+from src.blocks import TEXT_BEARING, Block, Span, load_pages, v2_path
 from src.sections import (
+    BODY_TYPES,
     SectionError,
     definition_marker,
     find_heading,
@@ -251,3 +252,7 @@ def test_bkm_and_strat_need_outline_renames_until_gate_5():
             assert title in str(e)
         else:  # the outline was patched (Task 13): the rename must have taken
             assert not any(s["title"].startswith(title) for s in meta["sections"])
+
+
+def test_body_types_are_the_text_bearing_types_less_footnotes_and_folios():
+    assert BODY_TYPES == TEXT_BEARING - {"page_footnote", "page_number"}
