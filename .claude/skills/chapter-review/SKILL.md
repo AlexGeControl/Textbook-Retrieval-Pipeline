@@ -35,7 +35,9 @@ targets are the composite entry points (`make -n <target> BOOK=B CH=N` shows wha
 3. **Tier A.** For every flagged block and every spot-check block, dispatch perception agents
    with `model: sonnet`, about ten crops per agent, using the rubric for the block type
    (`rubric-table.md`, `rubric-formula.md`, `rubric-chart.md` for chart and figure,
-   `rubric-text.md` for `running_matter_suspect` and spot checks). Give each agent, per block:
+   `rubric-text.md` for `running_matter_suspect`, spot checks and `text`-typed `vlm_generated`
+   blocks — mineru `algorithm` bodies, a boxed notation summary the VLM transcribed, whose
+   guardrail hunks are its spotlights). Give each agent, per block:
    the crop path (from `review crop`), the block's current rendering (HTML, LaTeX, data table
    or text, obtained with the rubric's one-liner), and the `checks.textlayer_diff` tokens as
    spotlights. Agents answer with the JSON in `answer-schema.json` and nothing else. Use the
@@ -81,5 +83,7 @@ targets are the composite entry points (`make -n <target> BOOK=B CH=N` shows wha
   MFR body (display formula, table, chart content, one inline formula) against its crop and
   nothing else.
 - Text layer wins on running text; VLM bodies are judged against their crop.
+- An `algorithm` body is running text the VLM wrote: judge it against the text layer first (its
+  hunks), the crop second; fix it with `replace` / `set_inline_math`, never a `set_*` body op.
 - No verdict without evidence: a hunk you did not look at stays `unresolved`.
 - Counts only in your report: never paste book text into anything committed.

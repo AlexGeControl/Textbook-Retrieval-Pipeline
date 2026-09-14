@@ -163,3 +163,19 @@ def test_set_inline_math_rewrites_every_identical_span():
     out = apply([twice], [rv])
     assert out[0].inline_math() == ("E _ { 1 }", "E _ { 1 }", "E _ { 0 }")
     assert out[0].text() == twice.text()
+
+
+def test_algorithm_body_is_patchable_like_running_text():
+    alg = Block(
+        id="p054-b001",
+        index=1,
+        type="algorithm",
+        page_idx=54,
+        bbox=(0, 0, 1, 1),
+        spans=(Span("equation_inline", "q ="), Span("text", " Order quantity - Back order")),
+        captions=(Span("text", "TABLE 9.9"),),
+    )
+    assert target_text(alg, "replace") == " Order quantity - Back order"
+    (out,) = apply([alg], [_p(block=alg.id, old=" - ", new=" − ")])
+    assert out.text() == " Order quantity − Back order"
+    assert out.caption_text() == "TABLE 9.9" and out.inline_math() == ("q =",)

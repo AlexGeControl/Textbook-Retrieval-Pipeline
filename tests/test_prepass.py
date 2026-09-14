@@ -91,6 +91,17 @@ def _aside(text, bbox=(900, 900, 950, 950)):
     }
 
 
+def _algorithm(text, bbox=(70, 80, 600, 110)):
+    return {
+        "type": "algorithm",
+        "bbox": list(bbox),
+        "content": {
+            "algorithm_caption": [{"type": "text", "content": "TABLE 9.9 Key notation"}],
+            "algorithm_content": [{"type": "text", "content": text}],
+        },
+    }
+
+
 def _hunk(anchor, pdf, md, page=119):
     return {"page": page, "anchor": anchor, "pdf_text": pdf, "md_text": md}
 
@@ -326,3 +337,23 @@ def test_bma_ch06_duplicate_and_ops_folio(tmp_path, monkeypatch):
     run(Chapter("ops", 5))
     ch = Chapter("ops", 5)
     assert sum(p.rule == "folio" for p in ch.patches) >= 5
+
+
+def test_algorithm_anchor_is_classified_like_running_text(tmp_path, monkeypatch):
+    wd = make_work_dir(
+        tmp_path,
+        monkeypatch,
+        pages=[_page(_algorithm("Order quan tity minus back orders"))],
+        hunks=[_hunk("p000-b000", "Order quantity minus", "Order quan tity minus")],
+        pdf_lines=["Order quantity minus back orders"],
+    )
+    assert run(Chapter("bma", 5)) == Counter({"same_letters": 1})
+    report = json.loads((wd / "qa_report.json").read_text())
+    assert "masking gap" not in report["review"]["hunks"][0]["note"]
+    (patch,) = _patches(wd)
+    assert (patch["op"], patch["block"], patch["old"], patch["new"]) == (
+        "replace",
+        "p000-b000",
+        "quan tity",
+        "quantity",
+    )
