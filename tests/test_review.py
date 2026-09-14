@@ -188,3 +188,37 @@ def test_cli_crop_prints_path_and_counts(wd):
     r = _cli("crop", "--id", "p000-b001")
     assert r.returncode == 0 and r.stdout.strip().endswith("images/eq.jpg")
     assert json.loads((wd / "qa_report.json").read_text())["review"]["effort"]["crops_opened"] == 1
+
+
+EMPTY_TABLE = {
+    "type": "table",
+    "bbox": [80, 300, 600, 400],
+    "content": {
+        "image_source": {"path": "images/"},
+        "table_caption": [],
+        "table_footnote": [],
+        "html": "",
+        "table_type": "simple_table",
+        "table_nest_level": 1,
+    },
+}
+
+
+def test_cli_crop_renders_a_bbox_crop_when_the_report_points_at_a_directory(tmp_path, monkeypatch):
+    # A stage-4 report written before the empty-table fix records "images/" as the crop.
+    wd = make_work_dir(
+        tmp_path,
+        monkeypatch,
+        pages=[[PARA, EQ, EMPTY_TABLE]],
+        hunks=[HUNK],
+        flagged=[
+            FLAG,
+            {"id": "p000-b002", "type": "table", "crop": "images/", "reason": "vlm_generated"},
+        ],
+        spot=[SPOT],
+        pdf_lines=["the capital budget"],
+    )
+    r = _cli("crop", "--id", "p000-b002")
+    assert r.returncode == 0, r.stderr
+    assert r.stdout.strip() == str(wd / "crops/p000-b002.png")
+    assert (wd / "crops/p000-b002.png").is_file()

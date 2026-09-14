@@ -153,6 +153,8 @@ def _block(raw: dict, page_idx: int, index: int) -> Block:
             captions=_joined([c.get("algorithm_caption", []), c.get("algorithm_footnote", [])]),
         )
     crop = (c.get("image_source") or {}).get("path", "")
+    if crop.endswith("/"):  # mineru writes a bare "images/" for a body it merged elsewhere
+        crop = ""
     if t == "equation_interline":
         return Block(**common, math=c.get("math_content", ""), crop=crop)
     if t in CAPTIONED:

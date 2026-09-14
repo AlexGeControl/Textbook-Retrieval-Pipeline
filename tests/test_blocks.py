@@ -219,3 +219,22 @@ def test_v2_text_spans_are_not_markdown_escaped(
             escaped_v2 += len(re.findall(r"\\[$%_#]", b.text() + b.caption_text()))
     assert escaped_v1 > 0, "v1 is expected to escape literal $ % _ # — fixture set changed?"
     assert escaped_v2 == 0
+
+
+def test_empty_table_with_a_bare_images_dir_has_no_crop(tmp_path):
+    # MinerU 3.4.5 emits image_source.path "images/" (no file) for a table whose body it
+    # merged into the previous page's block; that is not a crop.
+    raw = {
+        "type": "table",
+        "bbox": [116, 51, 883, 272],
+        "content": {
+            "image_source": {"path": "images/"},
+            "table_caption": [],
+            "table_footnote": [],
+            "html": "",
+            "table_type": "simple_table",
+            "table_nest_level": 1,
+        },
+    }
+    (tbl,) = load_blocks(_v2(tmp_path, [[raw]]))
+    assert tbl.crop == ""

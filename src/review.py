@@ -13,10 +13,13 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+import pymupdf
+
 from src import patches as patchmod
 from src.blocks import Block, load_blocks, v2_path
 from src.config import ConfigError, book_cfg, chapter_number, work_dir
 from src.extract import STEM, hybrid_auto_dir
+from src.qa_report import render_crop
 from src.qa_schema import (
     BLOCK_VERDICTS,
     CHECK_KEYS,
@@ -133,6 +136,9 @@ class Chapter:
         for f in (*self.report["flagged_blocks"], *self.report["spot_check"]):
             if f["id"] == block_id:
                 crop = f["crop"]
+                if crop.endswith("/"):  # a pre-fix stage-4 entry (bare "images/"): render the bbox
+                    with pymupdf.open(self.wd / "chapter.pdf") as doc:
+                        crop = render_crop(doc, self.by_id[block_id], self.wd)
                 return (self.hybrid_auto / crop) if crop.startswith("images/") else (self.wd / crop)
         raise ReviewError(f"{block_id} has no crop in qa_report.json (not flagged, not sampled)")
 

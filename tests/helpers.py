@@ -87,6 +87,8 @@ def make_work_dir(
             page.insert_text((80, 100), pdf_lines[i], fontsize=12)
     doc.save(wd / "chapter.pdf")
     for f in (*flagged, *spot):
+        if f["crop"].endswith("/"):  # a pre-fix report entry with no crop file (see test_review)
+            continue
         target = (ha / f["crop"]) if f["crop"].startswith("images/") else (wd / f["crop"])
         target.parent.mkdir(parents=True, exist_ok=True)
         pymupdf.Pixmap(pymupdf.csRGB, pymupdf.IRect(0, 0, 4, 4), False).save(target)
