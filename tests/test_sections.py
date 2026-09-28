@@ -157,6 +157,73 @@ def test_resolve_assigns_footnote_chains_to_the_referencing_section():
     assert not any(b.type == "page_footnote" for s in secs for b in s.blocks)
 
 
+def _bb(id_, type_, text, bbox, level=None):
+    from dataclasses import replace
+
+    return replace(_b(id_, type_, text, level), bbox=bbox)
+
+
+def _page0_with_first_section():
+    return [
+        _b("p000-b000", "title", "Chapter Title", 1),
+        _b("p000-b001", "paragraph", "opener"),
+        _b("p000-b002", "title", "5-1 First Section", 2),
+        _b("p000-b003", "paragraph", "first body"),
+    ]
+
+
+def test_slice_switches_at_margin_headings_by_geometry_not_emission_order():
+    # bma ch09 page 25: two right-margin page_aside_text headings are emitted after the whole
+    # column, i.e. after the in-column title of the section that follows them on the page.
+    meta = _meta(
+        [
+            _sec("5-1", "First Section", 0),
+            _sec(None, "Solutions", 1),
+            _sec(None, "On the Web", 1),
+            _sec(None, "Mini-Case", 1),
+        ],
+        pages=2,
+    )
+    pages = [
+        _page0_with_first_section(),
+        [
+            _bb("p001-b000", "list", "solutions body", (121, 116, 772, 429)),
+            _bb("p001-b001", "paragraph", "web intro", (119, 472, 770, 504)),
+            _bb("p001-b002", "list", "web links", (128, 512, 772, 779)),
+            _bb("p001-b003", "title", "Mini-Case", (121, 806, 260, 827), 2),
+            _bb("p001-b004", "paragraph", "case body", (119, 891, 772, 941)),
+            _bb("p001-b005", "page_header", "running head", (555, 47, 854, 63)),
+            _bb("p001-b006", "page_aside_text", "Solutions", (796, 113, 923, 170)),
+            _bb("p001-b007", "page_aside_text", "On the Web", (800, 473, 918, 509)),
+        ],
+    ]
+    secs = resolve(meta, pages)
+    assert [s.anchor for s in secs[1:]] == ["p000-b002", "p001-b006", "p001-b007", "p001-b003"]
+    assert [b.id for b in secs[1].blocks] == ["p000-b003"]
+    assert [b.id for b in secs[2].blocks] == ["p001-b000"]
+    assert [b.id for b in secs[3].blocks] == ["p001-b001", "p001-b002"]
+    assert [b.id for b in secs[4].blocks] == ["p001-b004", "p001-b005"]
+
+
+def test_slice_keeps_blocks_above_a_late_margin_heading_in_the_previous_section():
+    # bma ch05 page 26: one margin heading emitted last; the column blocks above it belong to
+    # the previous section, those beside and below it to the new one.
+    meta = _meta([_sec("5-1", "First Section", 0), _sec(None, "Solutions", 1)], pages=2)
+    pages = [
+        _page0_with_first_section(),
+        [
+            _bb("p001-b000", "paragraph", "last problem", (119, 88, 657, 106)),
+            _bb("p001-b001", "paragraph", "problem tail", (149, 275, 770, 308)),
+            _bb("p001-b002", "list", "first solution", (119, 338, 770, 437)),
+            _bb("p001-b003", "paragraph", "second solution", (119, 677, 758, 695)),
+            _bb("p001-b004", "page_aside_text", "Solutions", (798, 340, 925, 395)),
+        ],
+    ]
+    secs = resolve(meta, pages)
+    assert [b.id for b in secs[1].blocks] == ["p000-b003", "p001-b000", "p001-b001"]
+    assert [b.id for b in secs[2].blocks] == ["p001-b002", "p001-b003"]
+
+
 def test_resolve_first_child_and_chapter_start_rules():
     pages = [
         [_b("p000-b000", "title", "Chapter Title", 1), _b("p000-b001", "paragraph", "intro text")],

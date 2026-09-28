@@ -697,3 +697,15 @@ amends the section it names; the plan implements the amended form.
     exactly empty `new` removes the matching span(s) — an MFR span with no formula behind it (a
     subscript the text already carries, a hyperlink icon read as `\sum`). Whitespace-only `new`
     is still refused.
+12. **§9 slicing — headings MinerU emits late (2026-09-28).** MinerU orders `page_aside_text`,
+    `page_header` and `page_footer` blocks after the page's column. bma prints its end-of-chapter
+    headings (Key Takeaways, Solutions to Self-Test Questions, Finance on the Web) in the margin
+    as `page_aside_text`, ops/acct type some headings `page_header`, so "anchor to the next
+    anchor in page and index order" attributed the first page of every such section to the
+    section before it (bma ch05 p026, ch06 p022/p031, ops ch16 p042/p049/p053 — all certified
+    without a failure) and raised "out of outline order" when an in-column `title` anchor shared
+    the page (bma ch09 p025). An anchor of one of those three types (`sections.DEFERRED`) now
+    starts its section at the first block on its page whose vertical centre is at or below the
+    heading's top (or at the page's end when no block is); in-column anchors and the order check
+    are unchanged, and blocks keep reading order within a section. The three chapters above need
+    `make finalize` + push again to move the misattributed blocks; their review state is intact.

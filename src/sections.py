@@ -21,6 +21,9 @@ MAX_RUN = 4
 BODY_TYPES = frozenset(
     {"paragraph", "list", "title", "page_aside_text", "page_header", "page_footer", "algorithm"}
 )
+# Heading types MinerU emits after the page's column (bma margin headings, ops/acct page_header
+# headings): their section starts by geometry, not by emission order.
+DEFERRED = frozenset({"page_aside_text", "page_header", "page_footer"})
 _DEF = re.compile(r"^\s*<sup>\s*(\d+)\s*</sup>")
 _REF = re.compile(r"<sup>\s*(\d+)\s*</sup>")
 _STAR = re.compile(r"^\s*[*†‡]")
@@ -208,18 +211,30 @@ def _slice(sections: list[Section], pages: list[list[Block]], where: str) -> Non
     consumed = {bid for s in sections[1:] for bid in s.heading_blocks}
     current = sections[0]
     seen = 0
+
+    def switch(section: Section) -> None:
+        nonlocal current, seen
+        current = section
+        if current.ordinal != seen + 1:
+            raise SectionError(f"{where}: section {current.title!r} appears out of outline order")
+        seen += 1
+
     for page in pages:
+        # MinerU emits margin and header/footer blocks after the column, so a heading of one of
+        # those types starts its section at the first block that sits at or below it.
+        late = sorted(
+            (b for b in page if b.id in anchors and b.type in DEFERRED), key=lambda b: b.bbox[1]
+        )
         for b in page:
-            if b.id in anchors:
-                current = anchors[b.id]
-                if current.ordinal != seen + 1:
-                    raise SectionError(
-                        f"{where}: section {current.title!r} appears out of outline order"
-                    )
-                seen += 1
+            while late and (b.id == late[0].id or (b.bbox[1] + b.bbox[3]) / 2 >= late[0].bbox[1]):
+                switch(anchors[late.pop(0).id])
+            if b.id in anchors and b.type not in DEFERRED:
+                switch(anchors[b.id])
             if b.id in consumed or (current.ordinal == 0 and b.type == "title" and b.level == 1):
                 continue
             current.blocks.append(b)
+        for a in late:
+            switch(anchors[a.id])
     if seen != len(sections) - 1:
         raise SectionError(
             f"{where}: only {seen} of {len(sections) - 1} section anchors were reached"
