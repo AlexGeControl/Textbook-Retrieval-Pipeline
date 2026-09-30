@@ -709,3 +709,29 @@ amends the section it names; the plan implements the amended form.
     heading's top (or at the page's end when no block is); in-column anchors and the order check
     are unchanged, and blocks keep reading order within a section. The three chapters above need
     `make finalize` + push again to move the misattributed blocks; their review state is intact.
+13. **§8 review-checks — an outline entry on the wrong page (2026-09-30).** bma ch19's outline
+    puts "Solutions to Self-Test Questions" on page 618 (1-based, as `get_toc()` reports);
+    the printed heading (a `title` block, `p031-b000`) is on 617, so `sections.resolve`, which
+    matches on the outline page exactly, raised "has no heading on pdf page 617" (its pages
+    are 0-based indices) and `make review` halted (2026-09-28).
+    `toc.patches` could rename or insert an entry but not move one, so a `repage` rule
+    (`level`, `match`, `from_page`, `to_page`; the current page disambiguates a title that
+    recurs in every chapter; zero or several matches is an error) joins `src/toc.py` and is
+    applied once to the PDF by `scripts/patch_toc.py` like the others. The page check stays
+    exact: a tolerance would let a section start silently on the wrong page.
+14. **§8 pre-pass — a printed hyphen at a line end (2026-09-30).** bma's text layer breaks words
+    with a plain U+002D (no soft hyphen) and MinerU emits the two halves with a space
+    (`licens ing`, 41 times in ch19). The `same_letters` rule rebuilt the window from the raw run
+    and wrote `licens- ing` (hyphen kept, the newline as a space), which the guardrail's
+    dehyphenating normalization then hid; a spot check caught one (`long- term`).
+    `textlayer.render_words` now joins a printed hyphen at a line end like a soft one and
+    `line_end_hyphens` reports the joined word; the pre-pass writes that join as the patch but
+    leaves the hunk `unresolved` under the rule `line_hyphen`, because nothing in the text layer
+    or the crop distinguishes a soft hyphen from a compound's (`long-`/`term`, `dual-`/`class`)
+    or a suspended one (`market-`/`or`). The reviewer confirms the word (`accepted_pdf`) or
+    replaces it; the skill says so. ch19 was reviewed on the old output: 41 reviewer `replace`
+    patches restore the words.
+15. **§10 renderer — currency `$` in a chart-data callout (2026-09-30).** `figure()` copied a
+    chart's data table into the `[!note]` callout unescaped, so `($ millions)` in two header
+    cells failed the battery's inline-`$` pairing (bma ch19 Figures 19.1 and 19.2). Chart lines
+    now go through `escape_cell_dollars` (LaTeX pairs kept); mermaid bodies are untouched.

@@ -1,7 +1,16 @@
 import pymupdf
 import pytest
 
-from src.textlayer import Char, Word, find_run, page_words, render_words, stream_text, words_in_bbox
+from src.textlayer import (
+    Char,
+    Word,
+    find_run,
+    line_end_hyphens,
+    page_words,
+    render_words,
+    stream_text,
+    words_in_bbox,
+)
 from tests.helpers import work_chapter
 
 
@@ -18,6 +27,19 @@ def test_render_words_wraps_superscript_and_keeps_printed_quotes_and_dashes():
 def test_render_words_joins_the_word_a_soft_hyphen_broke():
     words = [_w("invest\u00ad", line=(0, 0)), _w("ing", line=(0, 1)), _w("now", line=(0, 1))]
     assert render_words(words) == "investing now"
+
+
+def test_render_words_joins_a_printed_hyphen_at_a_line_end_and_reports_it():
+    # bma ch19: the text layer breaks "licensing" as "licens-" / "ing" with a plain hyphen, and
+    # MinerU emits "licens ing"; the pre-pass used to write "licens- ing" (41 times).
+    words = [_w("and", line=(0, 0)), _w("licens-", line=(0, 0)), _w("ing", line=(0, 1)), _w("now")]
+    assert render_words(words) == "and licensing now"
+    assert line_end_hyphens(words) == ["licensing"]
+    same_line = [_w("market-"), _w("or"), _w("bank-based")]  # a suspended hyphen stays as printed
+    assert render_words(same_line) == "market- or bank-based"
+    assert line_end_hyphens(same_line) == []
+    lone = [_w("—", line=(0, 0)), _w("next", line=(0, 1))]  # a dash is not a hyphenated word
+    assert render_words(lone) == "— next"
 
 
 def test_stream_text_uses_newline_between_lines():

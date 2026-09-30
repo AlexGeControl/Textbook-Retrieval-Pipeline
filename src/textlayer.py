@@ -7,6 +7,7 @@ expanded because TEXT_PRESERVE_LIGATURES is not passed. This module only reads.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Callable
 from dataclasses import dataclass
 
@@ -140,13 +141,52 @@ def _with_sup(w: Word) -> str:
     return "".join(out)
 
 
+_HYPHEN_END = re.compile(r"\w-$")  # a printed hyphen right after a letter or digit
+
+
+def _breaks_word(w: Word, nxt: Word | None) -> bool:
+    """`w` ends in a printed hyphen and the run continues with a word on another line. The text
+    layer cannot say whether that hyphen is soft (licens-/ing) or a compound's (long-/term):
+    render_words() joins it like a soft hyphen and line_end_hyphens() reports the word so the
+    pre-pass can leave the decision to the reviewer (bma ch19, 2026-09-30)."""
+    return (
+        nxt is not None
+        and w.line != nxt.line
+        and _HYPHEN_END.search(w.text) is not None
+        and nxt.text[:1].isalpha()
+    )
+
+
 def render_words(words: list[Word]) -> str:
-    """Raw text of a run: single spaces, soft-hyphen line ends joined, superscripts wrapped."""
+    """Raw text of a run: single spaces, soft-hyphen and line-end hyphen breaks joined,
+    superscripts wrapped."""
     out: list[str] = []
     join_next = False
-    for w in words:
+    for i, w in enumerate(words):
         if out and not join_next:
             out.append(" ")
-        out.append(_with_sup(w).replace(SOFT_HYPHEN, ""))
-        join_next = w.soft_hyphen_end
+        text = _with_sup(w).replace(SOFT_HYPHEN, "")
+        nxt = words[i + 1] if i + 1 < len(words) else None
+        if _breaks_word(w, nxt) and text.endswith("-"):
+            text, join_next = text[:-1], True
+        else:
+            join_next = w.soft_hyphen_end
+        out.append(text)
     return "".join(out)
+
+
+def line_end_hyphens(words: list[Word]) -> list[str]:
+    """The words render_words() joined across a printed (not soft) line-end hyphen, as joined."""
+    out: list[str] = []
+    cur: str | None = None
+    for i, w in enumerate(words):
+        nxt = words[i + 1] if i + 1 < len(words) else None
+        text = w.text.replace(SOFT_HYPHEN, "")
+        if cur is not None:
+            cur += text[:-1] if _breaks_word(w, nxt) else text
+            if not _breaks_word(w, nxt):
+                out.append(cur)
+                cur = None
+        elif _breaks_word(w, nxt):
+            cur = text[:-1]
+    return out

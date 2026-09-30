@@ -21,7 +21,15 @@ from src.config import ConfigError
 from src.fold import fold, letters
 from src.normalize import MD_RULES, PDF_RULES, normalize, tokenize
 from src.review import Chapter, ReviewError, now
-from src.textlayer import Word, find_run, page_words, render_words, stream_text, words_in_bbox
+from src.textlayer import (
+    Word,
+    find_run,
+    line_end_hyphens,
+    page_words,
+    render_words,
+    stream_text,
+    words_in_bbox,
+)
 
 FOLIO_WORD = re.compile(r"^page$", re.IGNORECASE)
 CONTEXT_WIDEN = 3  # extra context tokens tried on each side when a window is not unique
@@ -253,6 +261,16 @@ class Prepass:
                 new = run[0].text + render_words(run[1:])  # drop cap glued to its word
             if new == window:
                 return Verdict("accepted_pdf", rule, block.id, note="raw texts agree")
+            joined = line_end_hyphens(run)
+            if joined:  # soft or compound hyphen? only a reader can tell (bma ch19, 2026-09-30)
+                return Verdict(
+                    "unresolved",
+                    "line_hyphen",
+                    block.id,
+                    ("replace", window, new),
+                    note=f"{rule}: line-end hyphen joined as {', '.join(joined)}; confirm the "
+                    "word (accepted_pdf) or replace it with the compound",
+                )
             return Verdict("accepted_pdf", rule, block.id, ("replace", window, new))
         return Verdict(
             "unresolved", "needs_eyes", block.id, note=f"{rule}: raw run or md window not unique"
@@ -369,7 +387,9 @@ def run(ch: Chapter) -> Counter:
                 made[key] = patch.id
                 added.append(key)
             ids.append(made[key])
-        rule = "needs_eyes" if v.verdict == "unresolved" else v.rule
+        # an unresolved hunk is needs_eyes, except line_hyphen: its patch is already applied and
+        # the reviewer only confirms the word
+        rule = "needs_eyes" if v.verdict == "unresolved" and v.rule != "line_hyphen" else v.rule
         previous[i] = {"verdict": v.verdict, "rule": rule, "patches": ids, "note": v.note}
         counts[rule.removeprefix("move+")] += 1
     review["prepass"] = {"timestamp": now(), "counts": dict(counts)}

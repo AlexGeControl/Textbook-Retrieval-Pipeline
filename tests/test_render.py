@@ -228,6 +228,36 @@ def test_equation_and_tables():
     assert "![[bma-ch05-p001-b008.jpg]]" in out and "[!warning]" in out and ctx.log
 
 
+def test_chart_data_callout_escapes_currency_dollars_but_not_mermaid():
+    # bma ch19 Figures 19.1/19.2: "($ millions)" in a chart's header cell failed the battery as an
+    # unbalanced inline `$` inside the callout (2026-09-30).
+    ctx = _ctx(verdicts={"p003-b000": "verified", "p002-b000": "verified"})
+    ctx.current = 2
+    chart = Block(
+        id="p003-b000",
+        index=0,
+        type="chart",
+        page_idx=3,
+        bbox=(0, 0, 500, 500),
+        sub_type="bar",
+        crop="images/c.jpg",
+        content="| Country | Average compensation ($ millions) |\n| --- | --- |\n| USA | ~14.3 |",
+    )
+    out = render_block(chart, ctx)
+    assert "> | Country | Average compensation (\\$ millions) |" in out
+    flow = Block(
+        id="p002-b000",
+        index=0,
+        type="image",
+        page_idx=2,
+        bbox=(0, 0, 500, 500),
+        crop="images/f.jpg",
+        content='```mermaid\ngraph TD\n  A["Cash $"] --> B["Bank"]\n```',
+    )
+    out = render_block(flow, ctx)
+    assert '>   A["Cash $"] --> B["Bank"]' in out  # mermaid indentation and `$` untouched
+
+
 def test_figures_charts_and_decorative_images():
     ctx = _ctx(verdicts={"p003-b000": "verified", "p002-b000": "unresolved"})
     ctx.current = 2

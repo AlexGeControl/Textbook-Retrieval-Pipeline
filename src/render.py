@@ -266,7 +266,12 @@ def figure(block: Block, ctx: Context) -> str:
             if block.type == "image"
             else "Chart data (VLM transcription)"
         )
-        body = "\n".join("> " + line for line in content.splitlines())
+        lines = content.splitlines()
+        if (
+            block.type != "image"
+        ):  # a chart's pipe table is Markdown: currency `$` escapes; mermaid stays
+            lines = [escape_cell_dollars(line) for line in lines]
+        body = "\n".join("> " + line for line in lines)
         parts.append(f"> [!note]- {label}\n{body}")
     return "\n\n".join(parts)
 

@@ -58,7 +58,12 @@ targets are the composite entry points (`make -n <target> BOOK=B CH=N` shows wha
    - hunks: `review hunk --index i --verdict accepted_pdf|accepted_md|move|dropped|patched
      --rule manual --patch <ids> --note "…"`, with a `review patch --block … --op replace
      --old … --new … --hunk i` first when text changes. `accepted_md` is for a defective text
-     layer (symbol fonts, ornaments). Never `set_*` on running text.
+     layer (symbol fonts, ornaments). Never `set_*` on running text. A hunk with rule
+     `line_hyphen` already carries a pre-pass patch that joined a word the text layer broke with
+     a printed hyphen (`licens-`/`ing` → `licensing`); neither the text layer nor a crop can tell
+     a soft hyphen from a compound's, so the word is the evidence: `accepted_pdf` (keep its
+     `--patch pp-…`) when the join is one word, else `replace` the joined form with the compound
+     or suspended form (`long-term`, `market- or`) and `patched`.
    - blocks: `review patch … --op replace|set_math|set_html|set_content` against the crop, then
      `review block --id … --verdict patched --patch <id>`; or `--verdict verified`; or
      `--verdict dropped` for a suspect that is running matter. Leave `unresolved` with a note

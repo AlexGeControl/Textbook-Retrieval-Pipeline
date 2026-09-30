@@ -131,6 +131,35 @@ def test_same_letters_patches_from_raw_pdf_words(tmp_path, monkeypatch):
     )
 
 
+def test_same_letters_with_a_line_end_hyphen_is_joined_but_left_for_the_reviewer(
+    tmp_path, monkeypatch
+):
+    wd = make_work_dir(
+        tmp_path,
+        monkeypatch,
+        pages=[_page(_p("chemicals and licens ing patents and technology"))],
+        hunks=[
+            _hunk(
+                "p000-b000", "chemicals and licensing patents", "chemicals and licens ing patents"
+            )
+        ],
+        pdf_lines=["chemicals and licens-\ning patents and technology"],
+    )
+    counts = run(Chapter("bma", 5))
+    assert counts == Counter({"line_hyphen": 1})
+    hunk = json.loads((wd / "qa_report.json").read_text())["review"]["hunks"][0]
+    assert (hunk["verdict"], hunk["rule"]) == ("unresolved", "line_hyphen")
+    assert "licensing" in hunk["note"]
+    (patch,) = _patches(wd)  # the window is widened with context until it is unique
+    assert (patch["op"], patch["old"], patch["new"], patch["rule"]) == (
+        "replace",
+        "and licens ing patents",
+        "and licensing patents",
+        "line_hyphen",
+    )
+    assert hunk["patches"] == [patch["id"]]
+
+
 def test_edge_glyph_and_drop_cap(tmp_path, monkeypatch):
     wd = make_work_dir(
         tmp_path,
