@@ -191,7 +191,7 @@ def resolve(meta: dict, pages: list[list[Block]]) -> list[Section]:
             raise SectionError(
                 f"{where}: section {(number + ' ') if number else ''}{title!r} has no heading on "
                 f"pdf page {e['pdf_page']} (chapter page {pi}); fix the outline with "
-                "config/books.yaml toc.patches (rename/insert) and re-run make split"
+                "config/books.yaml toc.patches (rename/insert/repage) and re-run make split"
             )
         consumed = (
             tuple(b.id for b in hit) if rule == "heading" else ()

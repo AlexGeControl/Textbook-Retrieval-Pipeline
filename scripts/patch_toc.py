@@ -5,7 +5,7 @@
   uv run scripts/patch_toc.py <book> --apply --force   even if <id>.orig.pdf exists and differs
 
 Rules come from toc.patches in config/books.yaml (see src/toc.py: number_from_children,
-rebuild_numbered_sections, insert, rename). --apply copies the current PDF to books/<id>/<id>.orig.pdf
+rebuild_numbered_sections, insert, rename, repage). --apply copies the current PDF to books/<id>/<id>.orig.pdf
 first, rewrites only the outline (incremental save: page objects and the text layer keep their
 bytes), then re-opens the file and asserts the outline and page count. MuPDF re-encodes control
 characters in titles it writes (bkm's U+0007 comes back as U+00B7): both modes report those

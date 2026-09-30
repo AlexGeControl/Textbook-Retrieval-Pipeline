@@ -189,6 +189,21 @@ def test_insert_after_a_unique_match():
         patch_toc(toc, [{**rule[0], "after": {"level": 1, "match": "^Chapter"}}])
 
 
+def test_repage_moves_the_one_entry_matched_by_level_title_and_page():
+    # bma ch19 (2026-09-28): the publisher's outline puts "Solutions to Self-Test Questions" one
+    # page late; the same title recurs in every chapter, so the current page disambiguates.
+    toc = [[1, "Ch 1", 2], [2, "Solutions", 4], [1, "Ch 2", 5], [2, "Solutions", 8]]
+    rule = [{"rule": "repage", "level": 2, "match": r"^Solutions$", "from_page": 8, "to_page": 7}]
+    new, changes = patch_toc(toc, rule)
+    assert new == [[1, "Ch 1", 2], [2, "Solutions", 4], [1, "Ch 2", 5], [2, "Solutions", 7]]
+    assert changes == [Change(2, 7, "Solutions", "Solutions", "moved from page 8")]
+    assert toc[3][2] == 8  # input not mutated
+    with pytest.raises(PatchError, match="matched 0"):
+        patch_toc(toc, [{**rule[0], "from_page": 9}])
+    with pytest.raises(PatchError, match="matched 2"):
+        patch_toc(toc + [[2, "Solutions", 8]], rule)
+
+
 # ---- MuPDF re-encodes control characters in outline titles (bkm's U+0007, gate 5) -------------
 
 REENCODED = "control character re-encoded by MuPDF"

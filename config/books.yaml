@@ -54,7 +54,19 @@ books:
     profile: formulas-heavy
     pdf: books/bma/bma.pdf
     body_range: {begin: 4, end: 1052}
-    toc: {source: outline, chapter_level: 2, chapter_pattern: '^(\d+):', page_offset: 31}
+    toc:
+      source: outline
+      chapter_level: 2
+      chapter_pattern: '^(\d+):'
+      page_offset: 31
+      # ch19's "Solutions to Self-Test Questions" bookmark points one page late (2026-09-30);
+      # pages are 1-based as in the PDF outline (the split's error quotes 0-based indices).
+      patches:
+        - {rule: repage, level: 3, match: '^Solutions to Self-Test Questions$', from_page: 618, to_page: 617}
+        # 7 Part titles (level 1) and ch16's title (level 2) carry an unprinted U+0007; MuPDF
+        # re-encodes it as U+00B7 on any outline save, so it is removed at the source (as bkm).
+        - {rule: rename, level: 1, match: '\x07', replace: ''}
+        - {rule: rename, level: 2, match: '\x07', replace: ''}
     chapter_ranges: {}
     routing: {inline_formula: true}
 
