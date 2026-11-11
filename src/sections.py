@@ -24,6 +24,8 @@ BODY_TYPES = frozenset(
 # Heading types MinerU emits after the page's column (bma margin headings, ops/acct page_header
 # headings): their section starts by geometry, not by emission order.
 DEFERRED = frozenset({"page_aside_text", "page_header", "page_footer"})
+# Never part of the text column, wherever they are printed.
+_OFF_COLUMN = DEFERRED | {"page_number", "page_footnote"}
 _DEF = re.compile(r"^\s*<sup>\s*(\d+)\s*</sup>")
 _REF = re.compile(r"<sup>\s*(\d+)\s*</sup>")
 _STAR = re.compile(r"^\s*[*†‡]")
@@ -206,6 +208,51 @@ def resolve(meta: dict, pages: list[list[Block]]) -> list[Section]:
     return sections
 
 
+def _column(page: list[Block]) -> tuple[float, float] | None:
+    """Horizontal extent of the page's text column(s): its paragraphs and lists at least half as
+    wide as the widest one (a margin caption or note is narrower)."""
+    text = [b for b in page if b.type in ("paragraph", "list")]
+    if not text:
+        return None
+    half = max(b.bbox[2] - b.bbox[0] for b in text) / 2
+    wide = [b for b in text if b.bbox[2] - b.bbox[0] >= half]
+    return min(b.bbox[0] for b in wide), max(b.bbox[2] for b in wide)
+
+
+def _printed_order(page: list[Block], anchors: dict[str | None, Section]) -> list[Block]:
+    """The page with each margin heading moved to where its section starts in the column.
+
+    bma prints its end-of-chapter headings beside the column. Typed `title`, they are emitted
+    with the other left-margin blocks, before the column (the DEFERRED types come after it), so
+    emission order gives the column blocks printed above such a heading to its section. A
+    heading wholly outside the text column is read just before the first column block whose
+    vertical centre is at or below its top, or at the page's end when there is none.
+    """
+    column = _column(page)
+    if column is None:
+        return page
+
+    def beside(b: Block) -> bool:
+        return b.bbox[2] <= column[0] or b.bbox[0] >= column[1]
+
+    margin = sorted(
+        (b for b in page if b.id in anchors and b.type not in DEFERRED and beside(b)),
+        key=lambda b: b.bbox[1],
+    )
+    if not margin:
+        return page
+    moved = {b.id for b in margin}
+    out: list[Block] = []
+    for b in page:
+        if b.id in moved:
+            continue
+        if b.type not in _OFF_COLUMN and not beside(b):
+            while margin and (b.bbox[1] + b.bbox[3]) / 2 >= margin[0].bbox[1]:
+                out.append(margin.pop(0))
+        out.append(b)
+    return out + margin
+
+
 def _slice(sections: list[Section], pages: list[list[Block]], where: str) -> None:
     anchors = {s.anchor: s for s in sections[1:]}
     consumed = {bid for s in sections[1:] for bid in s.heading_blocks}
@@ -219,7 +266,8 @@ def _slice(sections: list[Section], pages: list[list[Block]], where: str) -> Non
             raise SectionError(f"{where}: section {current.title!r} appears out of outline order")
         seen += 1
 
-    for page in pages:
+    for emitted in pages:
+        page = _printed_order(emitted, anchors)
         # MinerU emits margin and header/footer blocks after the column, so a heading of one of
         # those types starts its section at the first block that sits at or below it.
         late = sorted(

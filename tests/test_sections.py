@@ -224,6 +224,77 @@ def test_slice_keeps_blocks_above_a_late_margin_heading_in_the_previous_section(
     assert [b.id for b in secs[2].blocks] == ["p001-b002", "p001-b003"]
 
 
+def test_slice_starts_a_margin_title_section_at_its_height_when_emitted_before_the_column():
+    # bma ch15 page 24: two left-margin headings typed `title` are emitted before the column,
+    # whose first blocks are printed above both of them.
+    meta = _meta(
+        [_sec("5-1", "First Section", 0), _sec(None, "Solutions", 1), _sec(None, "On the Web", 1)],
+        pages=2,
+    )
+    pages = [
+        _page0_with_first_section(),
+        [
+            _bb("p001-b000", "title", "Solutions", (72, 395, 196, 451), 2),
+            _bb("p001-b001", "title", "On the Web", (74, 761, 192, 797), 2),
+            _bb("p001-b002", "paragraph", "last problem", (225, 112, 876, 177)),
+            _bb("p001-b003", "paragraph", "problem tail", (253, 180, 876, 229)),
+            _bb("p001-b004", "list", "first solution", (225, 395, 876, 623)),
+            _bb("p001-b005", "list", "second solution", (276, 625, 859, 695)),
+            _bb("p001-b006", "paragraph", "web links", (223, 762, 876, 812)),
+            _bb("p001-b007", "page_number", "24", (59, 47, 93, 61)),
+        ],
+    ]
+    secs = resolve(meta, pages)
+    assert [b.id for b in secs[1].blocks] == ["p000-b003", "p001-b002", "p001-b003"]
+    assert [b.id for b in secs[2].blocks] == ["p001-b004", "p001-b005"]
+    assert [b.id for b in secs[3].blocks] == ["p001-b006", "p001-b007"]
+
+
+def test_slice_places_an_early_margin_heading_by_the_column_not_by_other_margin_blocks():
+    # bma ch06 page 23: an ornament image sits in the margin between the two headings and is
+    # emitted with them, before the column; it must not start the first heading's section.
+    meta = _meta(
+        [_sec("5-1", "First Section", 0), _sec(None, "Solutions", 1), _sec(None, "On the Web", 1)],
+        pages=2,
+    )
+    pages = [
+        _page0_with_first_section(),
+        [
+            _bb("p001-b000", "image", None, (90, 541, 175, 554)),
+            _bb("p001-b001", "title", "Solutions", (90, 563, 178, 598), 2),
+            _bb("p001-b002", "image", None, (93, 645, 175, 656)),
+            _bb("p001-b003", "title", "On the Web", (64, 669, 204, 684), 2),
+            _bb("p001-b004", "paragraph", "last problem", (246, 90, 453, 106)),
+            _bb("p001-b005", "paragraph", "problem tail", (244, 150, 876, 198)),
+            _bb("p001-b006", "paragraph", "first solution", (225, 566, 625, 581)),
+            _bb("p001-b007", "paragraph", "web links", (234, 712, 876, 777)),
+        ],
+    ]
+    secs = resolve(meta, pages)
+    text = [[b.id for b in s.blocks if b.type == "paragraph"] for s in secs]
+    assert text[1] == ["p000-b003", "p001-b004", "p001-b005"]
+    assert text[2] == ["p001-b006"]
+    assert text[3] == ["p001-b007"]
+
+
+def test_slice_keeps_emission_order_for_a_heading_inside_a_two_column_layout():
+    # Guard for the margin rule: a heading at the foot of the left column is in the text
+    # column, so the right column (printed above it, emitted after it) is its section.
+    meta = _meta([_sec("5-1", "First Section", 0), _sec(None, "Second Section", 1)], pages=2)
+    pages = [
+        _page0_with_first_section(),
+        [
+            _bb("p001-b000", "paragraph", "left column", (100, 100, 460, 600)),
+            _bb("p001-b001", "title", "Second Section", (100, 820, 330, 840), 2),
+            _bb("p001-b002", "paragraph", "right column top", (500, 100, 870, 500)),
+            _bb("p001-b003", "paragraph", "right column foot", (500, 520, 870, 900)),
+        ],
+    ]
+    secs = resolve(meta, pages)
+    assert [b.id for b in secs[1].blocks] == ["p000-b003", "p001-b000"]
+    assert [b.id for b in secs[2].blocks] == ["p001-b002", "p001-b003"]
+
+
 def test_resolve_first_child_and_chapter_start_rules():
     pages = [
         [_b("p000-b000", "title", "Chapter Title", 1), _b("p000-b001", "paragraph", "intro text")],

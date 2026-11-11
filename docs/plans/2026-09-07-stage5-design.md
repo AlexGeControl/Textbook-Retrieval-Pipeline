@@ -735,3 +735,21 @@ amends the section it names; the plan implements the amended form.
     chart's data table into the `[!note]` callout unescaped, so `($ millions)` in two header
     cells failed the battery's inline-`$` pairing (bma ch19 Figures 19.1 and 19.2). Chart lines
     now go through `escape_cell_dollars` (LaTeX pairs kept); mermaid bodies are untouched.
+17. **§9 slicing — margin headings typed `title` (2026-11-11).** Amendment 12 placed by geometry
+    only the three types MinerU emits after the column. bma's end-of-chapter headings also
+    arrive as `title` blocks: on a left-margin page emitted with the other margin blocks
+    *before* the column, on a right-margin page after it (as does bkm's margin SUMMARY heading
+    in ch16 and ch20). Emission order then gave the column blocks printed above such a heading
+    to its section, or the blocks beside it to the section before, and left the heading's own
+    section short or empty (bma ch15 p024: the Solutions note rendered with no body). Nothing
+    failed: the battery has no check for it. `sections._printed_order` now moves an anchor that
+    lies wholly outside the page's text column to just before the first column block whose
+    vertical centre is at or below the heading's top (the page's end when there is none). The
+    text column is the horizontal extent of the page's paragraphs and lists at least half as
+    wide as the widest one, so a margin caption does not widen it and both columns of a
+    two-column page belong to it; running matter, footnotes and other margin blocks never
+    start the section. `DEFERRED` anchors, in-column anchors and the order check are unchanged.
+    Measured over the 34 work dirs: 13 chapters change (bma ch05, ch06, ch10, ch15, ch16, ch17,
+    ch18, ch19, ch22, ch23, ch27; bkm ch16, ch20), 119 blocks on 21 pages, five empty section
+    notes filled; the other 21 chapters are block-for-block identical. The 13 need
+    `make finalize` (review state intact) and, where pushed, a push again.
