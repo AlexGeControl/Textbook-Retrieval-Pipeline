@@ -25,11 +25,17 @@ TEXT_BEARING = frozenset(
         "page_header",
         "page_footer",
         "page_number",
+        "algorithm",
     }
 )
 # Running heads, feet and folios: aligned like any text; stage 4 flags the ones whose text is
 # not running matter (a heading or sentence the layout model mislabeled) so stage 5 keeps them.
 RUNNING_MATTER = frozenset({"page_header", "page_footer", "page_number"})
+# Text-bearing bodies the VLM wrote: mineru's hybrid backend keeps the VLM transcription of a
+# `code`/`algorithm` body instead of the text layer (ops ch16 p054-b001: a boxed notation summary
+# the layout model read as pseudo-code). Aligned by the guardrail like any text, flagged for
+# review as `text`, never masked. `code` and `index` still fail loudly until a chapter has one.
+VLM_TRANSCRIBED = frozenset({"algorithm"})
 # Bodies written by the VLM/MFR, reviewed against their crop. An `image` joins when it carries
 # `content` (flowchart -> mermaid, text_image -> transcription): see Block.is_vlm_generated().
 VLM_GENERATED = frozenset({"table", "equation_interline", "chart"})
@@ -44,6 +50,7 @@ SCHEMA_TYPE = {
     "equation_interline": "formula",
     "chart": "chart",
     "image": "figure",
+    "algorithm": "text",
 }
 
 
@@ -76,7 +83,7 @@ class Block:
     page_idx: int
     bbox: tuple[int, int, int, int]  # 0-1000 per axis
     spans: tuple[Span, ...] = ()  # body of a TEXT_BEARING block, list items NEWLINE-separated
-    captions: tuple[Span, ...] = ()  # *_caption NEWLINE *_footnote spans of a CAPTIONED block
+    captions: tuple[Span, ...] = ()  # *_caption NEWLINE *_footnote spans (CAPTIONED, algorithm)
     level: int | None = None  # title level
     math: str = ""  # equation_interline LaTeX, no delimiters
     html: str = ""  # table body
@@ -97,7 +104,9 @@ class Block:
         )
 
     def is_vlm_generated(self) -> bool:
-        return self.type in VLM_GENERATED or (self.type == "image" and bool(self.content.strip()))
+        if self.type in VLM_GENERATED or self.type in VLM_TRANSCRIBED:
+            return True
+        return self.type == "image" and bool(self.content.strip())
 
 
 def _spans(raw: list[dict]) -> tuple[Span, ...]:
@@ -137,7 +146,15 @@ def _block(raw: dict, page_idx: int, index: int) -> Block:
         return Block(**common | {"sub_type": c.get("list_type")}, spans=_joined(items))
     if t in RUNNING_MATTER or t in ("page_footnote", "page_aside_text"):
         return Block(**common, spans=_spans(c.get(f"{t}_content", [])))
+    if t == "algorithm":
+        return Block(
+            **common,
+            spans=_spans(c.get("algorithm_content", [])),
+            captions=_joined([c.get("algorithm_caption", []), c.get("algorithm_footnote", [])]),
+        )
     crop = (c.get("image_source") or {}).get("path", "")
+    if crop.endswith("/"):  # mineru writes a bare "images/" for a body it merged elsewhere
+        crop = ""
     if t == "equation_interline":
         return Block(**common, math=c.get("math_content", ""), crop=crop)
     if t in CAPTIONED:

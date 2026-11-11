@@ -121,3 +121,34 @@ def test_pure_deletion_anchors_to_the_block_matched_just_before():
 def test_page_count_mismatch_fails_loudly(text_only_cache):
     with pytest.raises(GuardrailError, match="content_list_v2 has 4 pages, formula.pdf has 1"):
         run(FIXTURES / "bma" / "formula.pdf", text_only_cache, stem="text-only")
+
+
+def test_algorithm_block_aligns_its_caption_and_vlm_body_and_is_not_masked():
+    alg = Block(
+        id="p000-b004",
+        index=4,
+        type="algorithm",
+        page_idx=0,
+        bbox=(100, 100, 900, 500),
+        spans=(
+            Span("equation_inline", "q ="),
+            Span("text", " Order quantity  \n "),
+            Span("equation_inline", "h ="),
+            Span("text", " Holding cost"),
+        ),
+        captions=(Span("text", "TABLE 9.9 Key notation"),),
+    )
+    assert block_text(alg) == "TABLE 9.9 Key notation q=  Order quantity  \n  h=  Holding cost"
+    assert [t.text for t in block_tokens(alg)] == [
+        "TABLE",
+        "9.9",
+        "Key",
+        "notation",
+        "q=",
+        "Order",
+        "quantity",
+        "h=",
+        "Holding",
+        "cost",
+    ]
+    assert block_masks([alg], pymupdf.Rect(0, 0, 1000, 1000)) == []

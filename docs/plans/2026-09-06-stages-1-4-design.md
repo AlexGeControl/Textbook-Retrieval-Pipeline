@@ -122,7 +122,8 @@ Which outline entries are chapters is decided in one place, `src/toc.chapter_ent
 rule: an entry at `chapter_level` whose title matches `chapter_pattern`. Outline quirks are not
 handled at run time: `scripts/patch_toc.py <book> --apply` fixes them **once in the PDF** using
 the `toc.patches` rules (`number_from_children` for stats' unnumbered chapter titles,
-`rebuild_numbered_sections` + `insert` for corpfin's detached section numbers, `rename` for one-offs). The
+`rebuild_numbered_sections` + `insert` for corpfin's detached section numbers, `rename` for one-offs,
+`repage` for a bookmark the publisher put on the wrong page). The
 patched `books/<id>/<id>.pdf` is the source of truth; `books/<id>/<id>.orig.pdf` preserves the
 original bytes (gitignored) so the change is reversible and diffable via `get_toc()`; only the
 outline objects change (incremental save), the text layer is byte-identical.
@@ -383,3 +384,17 @@ Stage 5 skill and `vault_commit.py`; per-section note slicing; footnote renderin
 the benchmark pass over seven books; the batch loop; the Mac client and Tailscale check;
 `chapter_ranges` for stats/acct; the LLM heading-refinement hook (HANDOVER §8: only if
 gate 4 shows bad hierarchy).
+
+## Amendments (2026-09-14)
+
+1. **§1 vocabulary, §6 block model — `algorithm`.** First sighting: ops ch16 `p054-b001`, the
+   chapter's boxed "Summary of Key Notation and Equations", labelled `algorithm` by the layout
+   model (1 block in ~11,000 across 16 chapters and the fixtures). mineru's hybrid backend keeps
+   the VLM transcription of a `code`/`algorithm` body instead of the text layer, so the body is
+   running text the VLM wrote. The model loads it: `TEXT_BEARING` gains `algorithm` (aligned,
+   pre-pass-classified, patchable like a paragraph; its caption spans precede the body in the
+   guardrail's md text); a new class `VLM_TRANSCRIBED = {algorithm}` makes it VLM-generated for
+   stage 4 (`flagged_blocks.type` `text`, reason `vlm_generated`, crop rendered from
+   `chapter.pdf`) and keeps it out of the spot-check sample. `MASKED`, `CAPTIONED` and the
+   qa_report schema are unchanged; `code` and `index` still raise `BlockError`. Plan and
+   decision record: `docs/plans/2026-09-14-algorithm-block-plan.md`.

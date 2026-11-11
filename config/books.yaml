@@ -20,6 +20,8 @@
 #   routing             per-book MinerU flags consumed by stage 2:
 #                       inline_formula -> -f, table -> -t, image_analysis -> --image-analysis,
 #                       lang -> -l
+#   review              per-book stage-5 switches: textlayer_math: false disables the text-layer
+#                       check of display formulas (symbol fonts encode Greek/operators as Latin)
 
 books:
   bkm:
@@ -29,7 +31,19 @@ books:
     profile: formulas
     pdf: books/bkm/bkm.pdf
     body_range: {begin: 4, end: 1072}
-    toc: {source: outline, chapter_level: 2, chapter_pattern: '^Chapter (\d+):', page_offset: 29}
+    toc:
+      source: outline
+      chapter_level: 2
+      chapter_pattern: '^Chapter (\d+):'
+      page_offset: 29
+      patches:
+        # The outline's "End of Chapter Material" is a grouping label with no printed heading; the
+        # page opens with SUMMARY (2026-09-07, stage-5 anchor rule).
+        - {rule: rename, level: 3, match: '^End of Chapter Material$', replace: 'Summary'}
+        # 15 titles carry an unprinted U+0007 before the words; MuPDF re-encodes it as U+00B7 on
+        # any outline save, so it is removed at the source (2026-09-07, gate 5).
+        - {rule: rename, level: 3, match: '\x07', replace: ''}
+        - {rule: rename, level: 5, match: '\x07', replace: ''}
     chapter_ranges: {}
     routing: {inline_formula: true}
 
@@ -40,7 +54,19 @@ books:
     profile: formulas-heavy
     pdf: books/bma/bma.pdf
     body_range: {begin: 4, end: 1052}
-    toc: {source: outline, chapter_level: 2, chapter_pattern: '^(\d+):', page_offset: 31}
+    toc:
+      source: outline
+      chapter_level: 2
+      chapter_pattern: '^(\d+):'
+      page_offset: 31
+      # ch19's "Solutions to Self-Test Questions" bookmark points one page late (2026-09-30);
+      # pages are 1-based as in the PDF outline (the split's error quotes 0-based indices).
+      patches:
+        - {rule: repage, level: 3, match: '^Solutions to Self-Test Questions$', from_page: 618, to_page: 617}
+        # 7 Part titles (level 1) and ch16's title (level 2) carry an unprinted U+0007; MuPDF
+        # re-encodes it as U+00B7 on any outline save, so it is removed at the source (as bkm).
+        - {rule: rename, level: 1, match: '\x07', replace: ''}
+        - {rule: rename, level: 2, match: '\x07', replace: ''}
     chapter_ranges: {}
     routing: {inline_formula: true}
 
@@ -53,7 +79,14 @@ books:
     body_range: {begin: 7, end: 1284}
     # Reflowed e-book: no printed page numbers per PDF page (the original book's breaks appear
     # inline as "Page N" markers). page_offset 0 = report PDF 1-based pages as printed pages.
-    toc: {source: outline, chapter_level: 1, chapter_pattern: '^Chapter (\d+):', page_offset: 0}
+    toc:
+      source: outline
+      chapter_level: 1
+      chapter_pattern: '^Chapter (\d+):'
+      page_offset: 0
+      # The publisher's bookmark reorders the printed heading of 3.2 (2026-09-14, stage-5 anchor rule).
+      patches:
+        - {rule: rename, level: 2, match: '^3\.2 Bottleneck, Process Capacity, and Flow Rate \(Throughput\)$', replace: '3.2 Process Capacity, Bottleneck, and Flow Rate (Throughput)'}
     chapter_ranges: {}
     routing: {inline_formula: true}
 
@@ -64,7 +97,13 @@ books:
     profile: prose+exhibits
     pdf: books/strat/strat.pdf
     body_range: {begin: 4, end: 509}
-    toc: {source: outline, chapter_level: 2, chapter_pattern: '^CHAPTER (\d+)\b', page_offset: 43}
+    toc:
+      source: outline
+      chapter_level: 2
+      chapter_pattern: '^CHAPTER (\d+)\b'
+      page_offset: 43
+      # Printed heading is plural (2026-09-07).
+      patches: [{rule: rename, level: 3, match: '^Experiential Exercise and Application Questions$', replace: 'Experiential Exercises and Application Questions'}]
     chapter_ranges: {}
     routing: {inline_formula: false}   # prose book; inline-formula detection is pure false-positive cost
 
@@ -83,6 +122,7 @@ books:
       patches: [{rule: number_from_children, level: 1}]   # chapter titles carry no number; sections do
     chapter_ranges: {}
     routing: {inline_formula: true}
+    review: {textlayer_math: false}   # MathematicalPi glyphs: 1/78 formulas match the text layer (2026-09-07)
 
   corpfin:
     title: "Corporate Finance"

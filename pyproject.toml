@@ -4,9 +4,12 @@ version = "0.0.1"
 description = "Born-digital textbook chapters -> certified Obsidian markdown"
 requires-python = ">=3.10"
 dependencies = [
+    "lxml>=5",
     "mineru[pipeline]>=3.4.5,<4",
+    "pylatexenc>=2.10",
     "pymupdf>=1.28",
     "pyyaml>=6",
+    "requests>=2.31",
 ]
 
 [project.optional-dependencies]
@@ -25,8 +28,12 @@ constraint-dependencies = ["fastapi<0.137"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
-markers = ["integration: needs a live MinerU server (MINERU_SERVER_URL)"]
-addopts = "-m 'not integration'"
+markers = [
+    "integration: needs a live MinerU server (MINERU_SERVER_URL)",
+    "workdir: reads work/<book>/<chNN>/ produced by make chapter (skips when absent)",
+    "vault: needs OBSIDIAN_HOST, OBSIDIAN_PORT, OBSIDIAN_API_KEY and a live vault",
+]
+addopts = "-m 'not integration and not vault'"
 
 [tool.ruff]
 line-length = 100

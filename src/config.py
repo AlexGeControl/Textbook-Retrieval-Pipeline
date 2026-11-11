@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import re
 from pathlib import Path
 
@@ -10,7 +11,7 @@ import yaml
 ROOT = Path(__file__).resolve().parents[1]
 BOOKS_YAML = ROOT / "config" / "books.yaml"
 READINGS_DIR = ROOT / "config" / "readings"
-WORK = ROOT / "work"
+WORK = Path(os.environ.get("TRP_WORK", ROOT / "work"))
 
 
 class ConfigError(Exception):

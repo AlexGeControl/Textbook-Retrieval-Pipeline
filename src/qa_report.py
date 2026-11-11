@@ -9,7 +9,7 @@ import random
 import re
 import sys
 from collections import defaultdict
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -20,6 +20,7 @@ from src.blocks import (
     RUNNING_MATTER,
     SCHEMA_TYPE,
     TEXT_BEARING,
+    VLM_TRANSCRIBED,
     Block,
     load_blocks,
     v2_path,
@@ -31,7 +32,9 @@ from src.qa_schema import SchemaError, validate
 
 SPOT_FRACTION = 0.05
 SPOT_MIN = 3
-BODY_TEXT = TEXT_BEARING - RUNNING_MATTER  # spot-check candidates
+# Spot-check candidates: running text nobody else looks at. Running matter has its own flag and
+# VLM-transcribed bodies are flagged already, so the flagged and sampled sets stay disjoint.
+BODY_TEXT = TEXT_BEARING - RUNNING_MATTER - VLM_TRANSCRIBED
 _FOLIO = re.compile(r"^(page\s+)?[0-9]+$|^[ivxlc]+$", re.IGNORECASE)  # `Page 81`: ops
 _RUNNING_HEAD = re.compile(r"^(chapter|part)\b", re.IGNORECASE)
 
@@ -82,16 +85,27 @@ def spot_sample(candidates: list[Block], book: str, chapter: str) -> list[Block]
     return sorted(random.Random(seed).sample(candidates, n), key=lambda b: (b.page_idx, b.index))
 
 
-def render_crop(doc: pymupdf.Document, block: Block, out_dir: Path, zoom: float = 2.0) -> str:
-    """Render the block's bbox (0-1000 coords) from chapter.pdf to crops/<id>.png."""
-    page = doc[block.page_idx]
+def render_bbox(
+    doc: pymupdf.Document,
+    page_idx: int,
+    bbox: Sequence[int],
+    out_dir: Path,
+    name: str,
+    zoom: float = 2.0,
+) -> str:
+    """Render a bbox (0-1000 coords) of one chapter.pdf page to crops/<name>.png."""
+    page = doc[page_idx]
     sx, sy = page.rect.width / 1000, page.rect.height / 1000
-    x0, y0, x1, y1 = block.bbox
+    x0, y0, x1, y1 = bbox
     clip = pymupdf.Rect(x0 * sx, y0 * sy, x1 * sx, y1 * sy)
     crops = Path(out_dir) / "crops"
     crops.mkdir(parents=True, exist_ok=True)
-    page.get_pixmap(clip=clip, matrix=pymupdf.Matrix(zoom, zoom)).save(crops / f"{block.id}.png")
-    return f"crops/{block.id}.png"
+    page.get_pixmap(clip=clip, matrix=pymupdf.Matrix(zoom, zoom)).save(crops / f"{name}.png")
+    return f"crops/{name}.png"
+
+
+def render_crop(doc: pymupdf.Document, block: Block, out_dir: Path, zoom: float = 2.0) -> str:
+    return render_bbox(doc, block.page_idx, block.bbox, out_dir, block.id, zoom)
 
 
 def build(

@@ -39,6 +39,9 @@ Client on GPU 1 (A6000; mineru reports `vram=47GB`), peak 7.8 GB; GPU 0 (vLLM) f
 | **total** | 4466 | 366 | 1 | 2329 | 584 | 272 | 259 | 230 | 41 | 79 | 276 | 41 | 253 | 61 | 41 |
 
 No `code`, `algorithm`, `index` or `phonetic` in this corpus (they would raise `BlockError`).
+Update 2026-09-14: the first `algorithm` appeared in ops ch16 (`p054-b001`, a boxed notation
+summary; 1 of ~11,000 blocks across 16 chapters) and is supported since
+`docs/plans/2026-09-14-algorithm-block-plan.md`; `code`, `index` and `phonetic` still raise.
 
 ## Spans, sub-types and the VLM set
 

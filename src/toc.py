@@ -106,9 +106,8 @@ class Change:
     page: int  # 1-based, as in the outline
     old: str
     new: str
-    note: str = (
-        ""  # merged | merged, moved to chapter N | demoted to level L | unpaired id | inserted
-    )
+    note: str = ""  # merged | merged, moved to chapter N | demoted to level L | unpaired id |
+    # inserted | moved from page P
 
 
 def _number_from_children(toc: list[list], level: int) -> tuple[list[list], list[Change]]:
@@ -303,11 +302,33 @@ def _rename(
     return out, changes
 
 
+def _repage(
+    toc: list[list], level: int, match: str, from_page: int, to_page: int
+) -> tuple[list[list], list[Change]]:
+    """Move the single entry at `level` whose title matches `match` and whose page is
+    `from_page` to `to_page`. The page disambiguates a title that recurs in every chapter
+    (bma's end-of-chapter sections); zero or several matches is an error."""
+    rx = re.compile(match)
+    hits = [
+        i for i, (lvl, t, p) in enumerate(toc) if lvl == level and p == from_page and rx.search(t)
+    ]
+    if len(hits) != 1:
+        raise PatchError(
+            f"repage {match!r} at page {from_page}: matched {len(hits)} level-{level} entries, "
+            "need exactly 1"
+        )
+    out = [list(e) for e in toc]
+    title = out[hits[0]][1]
+    out[hits[0]][2] = to_page
+    return out, [Change(level, to_page, title, title, f"moved from page {from_page}")]
+
+
 RULES = {
     "number_from_children": _number_from_children,
     "rebuild_numbered_sections": _rebuild_numbered_sections,
     "insert": _insert,
     "rename": _rename,
+    "repage": _repage,
 }
 
 

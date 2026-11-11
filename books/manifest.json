@@ -1,7 +1,7 @@
 {
   "bkm": {
     "pdf": "books/bkm/bkm.pdf",
-    "sha256": "d5921c7d5f5de0cef53f5edf2fdd658aa8fd5fab2cc46c50529441e4ccd1c702",
+    "sha256": "0f2a455c405698b860094e0ea762965b2e0de54193a47657d7fc1ccea1d08393",
     "pages": 1073,
     "text_layer_sample": "21/21",
     "outline_entries": 832,
@@ -16,7 +16,7 @@
   },
   "bma": {
     "pdf": "books/bma/bma.pdf",
-    "sha256": "1c772781a8bf47f9422b9b0a82248cbc2f266116420ac833d8efd184a5c54172",
+    "sha256": "a9d84916b6bfd3cadfa52d536234c80963b6e0594f271f0c3b1ccaebbcbb5022",
     "pages": 1057,
     "text_layer_sample": "21/21",
     "outline_entries": 850,
@@ -31,7 +31,7 @@
   },
   "ops": {
     "pdf": "books/ops/ops.pdf",
-    "sha256": "12aaba0fb8f55b4a2545b68d41f9da6b729a224f4e8f2523503809f6e6587335",
+    "sha256": "486f4219b139d406ed4b11de58d2cb92e2a1e2c3bfac1174d704bb1d903c5f3b",
     "pages": 1284,
     "text_layer_sample": "21/21",
     "outline_entries": 596,
@@ -46,7 +46,7 @@
   },
   "strat": {
     "pdf": "books/strat/strat.pdf",
-    "sha256": "9e1b99739b39d19aa264ebadc7f1f40f6b88d5ad7056bb4d9b703efdf53cab53",
+    "sha256": "3fe278c026e780bf87a92326c7bfd0d196cb3f19e22316aeda3804ce36eced17",
     "pages": 509,
     "text_layer_sample": "21/21",
     "outline_entries": 442,

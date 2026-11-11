@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Tier-A perception answer",
+  "type": "object",
+  "required": ["model", "match", "rows", "cols", "discrepancies", "note"],
+  "additionalProperties": false,
+  "properties": {
+    "model": {"type": "string", "const": "sonnet"},
+    "match": {"type": "boolean"},
+    "rows": {"type": ["integer", "null"]},
+    "cols": {"type": ["integer", "null"]},
+    "discrepancies": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["where", "crop", "html", "resolution"],
+        "properties": {
+          "where": {"type": "string"},
+          "crop": {"type": "string"},
+          "html": {"type": "string"},
+          "resolution": {"type": "string", "enum": ["artefact", "error"]}
+        }
+      }
+    },
+    "note": {"type": "string", "maxLength": 300}
+  }
+}
